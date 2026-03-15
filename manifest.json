@@ -1,0 +1,15 @@
+{
+  "name": "Quản Lý Heo",
+  "short_name": "QL Heo",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#28a745",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2190/2190476.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
