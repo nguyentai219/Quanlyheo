@@ -1,16 +1,38 @@
 {
-  "name": "Quanlyheo",
-  "short_name": "Quanlyheo",
-  "start_url": "index.html",
+  "name": "Quản Lý Heo",
+  "short_name": "Quản Lý Heo",
+  "description": "Quản lý tiêm chủng và dự sinh heo",
+  "start_url": "/Quanlyheo/",
+  "scope": "/Quanlyheo/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#000000",
+  "orientation": "portrait",
+  "background_color": "#2e7d32",
+  "theme_color": "#2e7d32",
+  "lang": "vi",
   "icons": [
     {
-      "src": "icon.png",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
-
