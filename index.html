@@ -483,100 +483,126 @@ function init(){
 }
 
 function setupGDrive(){
-  // Khởi tạo token client trước
+  // Khởi tạo token client MỘT LẦN DUY NHẤT với callback cố định
   gdTokenClient=google.accounts.oauth2.initTokenClient({
     client_id:GD_CLIENT_ID,
     scope:GD_SCOPE,
-    callback:onGDToken,
-    prompt:''
+    callback:onGDToken
   });
 
   try{
     const meta=JSON.parse(localStorage.getItem(GD_META_KEY)||'{}');
     if(meta.user){
-      // Có thông tin user → khôi phục UI trước (hiện tên/avatar ngay)
+      // Có user đã lưu → hiện UI logged-in ngay, xin token mới ngầm
       gdUser=meta.user;
       gdSpreadsheetId=meta.ssId||null;
-      // Không dùng token cũ vì có thể đã hết hạn (token Google sống ~1 giờ)
-      // Xin token mới âm thầm (silent - không hỏi lại user)
       renderLoggedIn();
-      setStatusBar('busy','🔄 Đang xác thực lại…');
-      gdTokenClient.requestAccessToken({prompt:''}); // prompt='' = silent nếu đã consent
+      setStatusBar('busy','🔄 Đang kết nối lại Drive…');
+      // Xin token mới không hiện popup (prompt không set = dùng cookie Google)
+      _silentRefresh=true;
+      gdTokenClient.requestAccessToken();
       return;
     }
   }catch(e){}
 
-  // Chưa có thông tin user → hiện nút đăng nhập
   showEl('gd-loggedout');
   setStatusBar('offline','🔴 Chưa kết nối Google Drive');
 }
 
+let _silentRefresh=false; // true = đang refresh âm thầm, false = đăng nhập thủ công
+
 /* ══ GOOGLE AUTH ══ */
 function gdSignIn(){
-  // Nút đăng nhập thủ công → luôn hiện chọn tài khoản
-  if(!gdTokenClient)gdTokenClient=google.accounts.oauth2.initTokenClient({client_id:GD_CLIENT_ID,scope:GD_SCOPE,callback:onGDToken});
+  _silentRefresh=false;
   gdTokenClient.requestAccessToken({prompt:'select_account'});
 }
 
 async function onGDToken(resp){
   if(resp.error){
-    // Lỗi silent refresh (ví dụ: chưa consent) → hiện nút đăng nhập
-    if(resp.error==='interaction_required'||resp.error==='login_required'||resp.error==='access_denied'){
+    if(_silentRefresh){
+      // Silent refresh thất bại → cần đăng nhập lại thủ công
+      _silentRefresh=false;
       gdToken=null;
-      localStorage.removeItem(GD_META_KEY);
-      sbState(false);
-      showEl('gd-loggedout');
-      hideEl('gd-loggedin');
-      setStatusBar('offline','🔴 Vui lòng đăng nhập lại');
+      // Nếu đã có user info thì vẫn giữ UI logged-in, chỉ hiện cảnh báo nhỏ
+      if(gdUser){
+        setStatusBar('offline','🔴 Mất kết nối — nhấn Đăng nhập lại');
+        // Thêm nút đăng nhập lại ngay trên statusbar
+        const sb=document.getElementById('gd-sb-right');
+        if(sb&&!document.getElementById('sb-relogin')){
+          const btn=document.createElement('button');
+          btn.id='sb-relogin';btn.className='sb-mini-btn backup';
+          btn.textContent='🔑 Đăng nhập lại';
+          btn.onclick=()=>{btn.remove();gdSignIn();};
+          sb.prepend(btn);
+        }
+      } else {
+        localStorage.removeItem(GD_META_KEY);
+        sbState(false);showEl('gd-loggedout');hideEl('gd-loggedin');
+        setStatusBar('offline','🔴 Chưa kết nối Google Drive');
+      }
       return;
     }
-    toast('Lỗi đăng nhập: '+resp.error,'err');
+    // Đăng nhập thủ công thất bại
+    toast('Lỗi đăng nhập: '+(resp.error_description||resp.error),'err');
     return;
   }
-  // Token mới OK
+
+  // Token OK
+  _silentRefresh=false;
   gdToken=resp.access_token;
+
+  // Xóa nút "Đăng nhập lại" nếu có
+  const reloginBtn=document.getElementById('sb-relogin');
+  if(reloginBtn)reloginBtn.remove();
+
   try{
-    gdUser=await gFetch('https://www.googleapis.com/oauth2/v3/userinfo');
-    // Không lưu token vào localStorage (token hết hạn sau 1h, gây lỗi)
-    // Chỉ lưu user info + spreadsheetId để khôi phục UI
+    // Lấy info user (nếu đã có rồi thì bỏ qua để tránh request thừa)
+    if(!gdUser||!gdUser.email){
+      gdUser=await gFetch('https://www.googleapis.com/oauth2/v3/userinfo',{},false);
+    }
     saveMeta();
     renderLoggedIn();
-    // Lên lịch tự xin token mới trước khi hết hạn (55 phút)
     scheduleTokenRefresh();
     toast('✅ Đã kết nối Google Drive!','ok');
-    setTimeout(()=>autoSync(),2000);
+    setTimeout(()=>autoSync(),1500);
   }
-  catch(e){toast('Không lấy được thông tin tài khoản: '+e.message,'err');}
+  catch(e){
+    toast('Lỗi xác thực: '+e.message,'err');
+  }
 }
+
 async function gdSignOut(){
   const ok=await showPopup({icon:'🚪',title:'Đăng xuất Google Drive',msg:'Bạn có chắc muốn đăng xuất không?',okText:'Đăng xuất',okClass:'danger'});
   if(!ok)return;
   clearTimeout(_refreshTimer);
+  _syncPending=false;
   if(gdToken)try{google.accounts.oauth2.revoke(gdToken,()=>{});}catch(e){}
   gdToken=gdUser=gdSpreadsheetId=null;
+  _silentRefresh=false;
   localStorage.removeItem(GD_META_KEY);
   setStatusBar('offline','🔴 Chưa kết nối Google Drive');
   sbState(false);
   const av=document.getElementById('gd-sb-avatar');if(av)av.remove();
   const fi=document.getElementById('gd-fileinfo');if(fi){fi.classList.remove('show');fi.style.display='none';}
   const ss=document.getElementById('sync-status-span');if(ss)ss.remove();
+  const rb=document.getElementById('sb-relogin');if(rb)rb.remove();
   toast('Đã đăng xuất khỏi Google Drive');
 }
+
 function saveMeta(){
-  // Không lưu token vì token hết hạn sau 1h → gây lỗi "phiên hết hạn"
-  // Chỉ lưu user info và spreadsheetId để khôi phục UI khi mở lại app
+  // Không lưu token (hết hạn sau 1h) — chỉ lưu user + spreadsheetId
   localStorage.setItem(GD_META_KEY,JSON.stringify({user:gdUser,ssId:gdSpreadsheetId}));
 }
 
-/* Tự động xin token mới trước khi hết hạn 55 phút */
 let _refreshTimer=null;
 function scheduleTokenRefresh(){
   clearTimeout(_refreshTimer);
   _refreshTimer=setTimeout(()=>{
-    if(gdTokenClient&&gdUser){
-      gdTokenClient.requestAccessToken({prompt:''});
+    if(gdUser){
+      _silentRefresh=true;
+      gdTokenClient.requestAccessToken();
     }
-  }, 55*60*1000); // 55 phút
+  },55*60*1000); // 55 phút
 }
 function renderLoggedIn(){
   hideEl('gd-guide');
@@ -637,33 +663,25 @@ async function gdRestore(){
   setDriveBtn(false);
 }
 
-async function gFetch(url,opts={},retry=true){
-  const h={'Authorization':'Bearer '+gdToken,'Content-Type':'application/json',...(opts.headers||{})};
+async function gFetch(url,opts={},showErrOnAuth=true){
+  const h={'Authorization':'Bearer '+(gdToken||''),'Content-Type':'application/json',...(opts.headers||{})};
   const r=await fetch(url,{...opts,headers:h});
   if(!r.ok){
     const txt=await r.text();
-    if(r.status===401&&retry&&gdTokenClient){
-      // Token hết hạn → xin token mới rồi thử lại 1 lần
-      await new Promise(resolve=>{
-        const origCb=gdTokenClient._callback;
-        gdTokenClient._callback=async(resp)=>{
-          if(!resp.error){gdToken=resp.access_token;scheduleTokenRefresh();}
-          gdTokenClient._callback=origCb;
-          resolve();
-        };
-        gdTokenClient.requestAccessToken({prompt:''});
-      });
-      return gFetch(url,opts,false); // retry=false tránh vòng lặp
-    }
-    if(r.status===401){
-      // Vẫn lỗi sau retry → cần đăng nhập lại thủ công
-      localStorage.removeItem(GD_META_KEY);
+    if(r.status===401&&showErrOnAuth){
+      // Token hết hạn → đánh dấu cần refresh, hiện nút đăng nhập lại
       gdToken=null;
-      sbState(false);
-      hideEl('gd-loggedin');showEl('gd-loggedout');
-      setStatusBar('offline','🔴 Phiên hết hạn — nhấn Đăng nhập lại');
+      setStatusBar('offline','🔴 Mất kết nối — nhấn Đăng nhập lại');
+      const sb=document.getElementById('gd-sb-right');
+      if(sb&&!document.getElementById('sb-relogin')){
+        const btn=document.createElement('button');
+        btn.id='sb-relogin';btn.className='sb-mini-btn backup';
+        btn.textContent='🔑 Đăng nhập lại';
+        btn.onclick=()=>{btn.remove();gdSignIn();};
+        sb.prepend(btn);
+      }
     }
-    throw new Error(`API ${r.status}: ${txt}`);
+    throw new Error(`API ${r.status}: ${txt.slice(0,120)}`);
   }
   return r.json();
 }
