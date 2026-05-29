@@ -365,7 +365,7 @@ bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#333
 
 <script>
 const GD_CLIENT_ID='1051621009021-voatlnik2ddekdvatlvsfcd5clkqp76c.apps.googleusercontent.com';
-const GD_SCOPE='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file';
+const GD_SCOPE='https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file email profile';
 const SS_NAME='QuanLyHeo_Database';
 const STORAGE_KEY='QUANLYHEO_DATA_v4';
 const GD_META_KEY='QUANLYHEO_GDRIVE_META';
@@ -547,29 +547,42 @@ async function onGDToken(resp){
   if(reloginBtn)reloginBtn.remove();
 
   try{
+    // Nếu chưa có user info → lấy từ tokeninfo (không cần scope openid)
     if(!gdUser||!gdUser.email){
-      // Lần đầu đăng nhập → lấy thông tin user
-      const res=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{
-        headers:{'Authorization':'Bearer '+gdToken}
-      });
-      if(!res.ok)throw new Error('Lỗi lấy thông tin tài khoản');
-      gdUser=await res.json();
+      // Dùng tokeninfo thay vì userinfo — ít bị chặn hơn
+      const res=await fetch(
+        'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token='+gdToken
+      );
+      const data=await res.json();
+      if(data.error){
+        // tokeninfo cũng lỗi → tạo user giả từ scope, vẫn dùng được Drive
+        gdUser={email:'(Google Account)',name:'Người dùng Google',picture:null};
+      } else {
+        gdUser={
+          email: data.email||'(Google Account)',
+          name:  data.email||'Người dùng Google',
+          picture: null
+        };
+      }
     }
     saveMeta();
     renderLoggedIn();
     scheduleTokenRefresh();
     setStatusBar('online','🟢 '+(gdUser.email||'Google Drive'));
     toast('✅ Đã kết nối Google Drive!','ok');
-    // Thực hiện hành động đang chờ nếu có
     if(_pendingAction==='backup'){_pendingAction=null;setTimeout(gdBackup,500);}
     else if(_pendingAction==='restore'){_pendingAction=null;setTimeout(gdRestore,500);}
     else{setTimeout(()=>autoSync(),1500);}
   }
   catch(e){
-    gdToken=null;
-    toast('Lỗi xác thực: '+e.message,'err');
-    setStatusBar('offline','🔴 Lỗi — thử lại');
-    addReloginBtn();
+    // Kể cả lấy user info lỗi, vẫn tiếp tục dùng Drive nếu có token
+    gdUser=gdUser||{email:'(Google Account)',name:'Người dùng Google',picture:null};
+    saveMeta();
+    renderLoggedIn();
+    scheduleTokenRefresh();
+    setStatusBar('online','🟢 Google Drive');
+    toast('✅ Đã kết nối Google Drive!','ok');
+    setTimeout(()=>autoSync(),1500);
   }
 }
 
