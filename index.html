@@ -243,30 +243,43 @@ bottom:22px;left:50%;transform:translateX(-50%) translateY(20px);background:#333
 <!-- ══ KHU VỰC CUỐI TRANG ══ -->
 <div style="padding:0 10px 20px">
   <div class="section-divider"><span class="section-divider-text">── SAO LƯU & KHÔI PHỤC ──</span></div>
+
+  <!-- Panel Google Drive gọn -->
   <div class="gdrive-panel" style="margin-bottom:16px">
     <div class="gdrive-topbar">
       <svg width="20" height="20" viewBox="0 0 87.3 78" fill="white"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.35c-.8 1.4-1.2 2.95-1.2 4.5h27.5z"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.2c.8-1.4 1.2-2.95 1.2-4.5H60.1l5.85 11.2z"/><path d="M43.65 25L57.4 1.2C56.05.45 54.5 0 52.85 0H34.45c-1.65 0-3.2.45-4.55 1.2z"/><path d="M60.1 52.85H27.5L13.75 76.65c1.35.8 2.9 1.2 4.55 1.2h50.7c1.65 0 3.2-.45 4.55-1.2z"/></svg>
-      <span class="gdrive-topbar-title">SAO LƯU GOOGLE DRIVE (Google Sheets)</span>
+      <span class="gdrive-topbar-title">☁️ Google Drive (tự động đồng bộ)</span>
     </div>
-    <div class="gdrive-body">
+    <div class="gdrive-body" style="padding:12px 15px">
+
+      <!-- Chưa đăng nhập -->
       <div id="gd-loggedout" style="display:none">
         <div class="gdrive-badge offline">🔴 Chưa kết nối Google Drive</div>
         <button class="gd-btn signin" onclick="gdSignIn()">
           <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
           ĐĂNG NHẬP VỚI GOOGLE
         </button>
-        <div class="gd-sheets-note">📊 Lưu thành <b>Google Sheets</b> với 5 sheet: Tổng quan · Chi tiết heo · Lịch tiêm · Chi phí · Xuất chuồng</div>
+        <div class="gd-sheets-note">📊 Sau khi đăng nhập, mọi thay đổi sẽ tự động đồng bộ lên Google Sheets</div>
       </div>
+
+      <!-- Đã đăng nhập — CHỈ hiện email + nút đăng xuất -->
       <div id="gd-loggedin" style="display:none">
-        <div class="gdrive-badge online" id="gd-badge">🟢 Đã kết nối Google Drive</div>
-        <div class="gdrive-user" id="gd-usercard"></div>
-        <div class="gdrive-fileinfo" id="gd-fileinfo"></div>
-        <button class="gd-btn backup"  id="gd-btn-backup"  onclick="gdBackup()">☁️ SAO LƯU LÊN GOOGLE SHEETS</button>
-        <button class="gd-btn restore" id="gd-btn-restore" onclick="gdRestore()">📥 KHÔI PHỤC TỪ GOOGLE SHEETS</button>
-        <button class="gd-btn signout" onclick="gdSignOut()">🚪 Đăng xuất</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+            <div id="gd-avatar-small" style="width:32px;height:32px;border-radius:50%;background:#4285f4;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;">G</div>
+            <div style="min-width:0;">
+              <div id="gd-email-small" style="font-size:13px;font-weight:700;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Google Drive</div>
+              <div class="gdrive-fileinfo" id="gd-fileinfo" style="font-size:11px;color:#2e7d32;margin:0;padding:0;border:none;background:none;display:none;"></div>
+            </div>
+          </div>
+          <button onclick="gdSignOut()" style="flex-shrink:0;padding:7px 12px;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;font-size:13px;font-weight:700;color:#555;cursor:pointer;white-space:nowrap;">🚪 Đăng xuất</button>
+        </div>
       </div>
+
     </div>
   </div>
+
+  <!-- Sao lưu thủ công -->
   <div style="background:#fff;border-radius:12px;padding:14px;border:1px solid #ddd;">
     <div class="divider-label" style="margin-top:0">── Sao lưu thủ công (không cần đăng nhập) ──</div>
     <button style="width:100%;padding:14px;background:#0277bd;color:#fff;border:none;border-radius:8px;font-weight:700;font-size:16px;cursor:pointer" onclick="exportJSON()">💾 SAO LƯU FILE .JSON</button>
@@ -486,7 +499,14 @@ function setupGDrive(){
   gdTokenClient=google.accounts.oauth2.initTokenClient({
     client_id:GD_CLIENT_ID,
     scope:GD_SCOPE,
-    callback:onGDToken
+    callback:onGDToken,
+    error_callback: (err)=>{
+      // prompt:none thất bại → cần tương tác thủ công
+      if(err.type==='popup_failed_to_open'||err.type==='popup_closed'){
+        showEl('gd-loggedout');
+        setStatusBar('offline','🔴 Chưa kết nối Google Drive');
+      }
+    }
   });
 
   try{
@@ -494,13 +514,12 @@ function setupGDrive(){
     if(meta.user){
       gdUser=meta.user;
       gdSpreadsheetId=meta.ssId||null;
-      // Hiện UI logged-in nhưng CHƯA có token thật
-      // Token sẽ được lấy lần đầu khi user thao tác (backup/restore)
-      // hoặc khi nhấn nút "Kết nối lại"
+      // Hiện UI đã đăng nhập ngay
       renderLoggedIn();
-      setStatusBar('offline','🔴 Chưa có token — nhấn Kết nối lại');
-      // Thêm nút kết nối lại nhỏ
-      addReloginBtn();
+      setStatusBar('busy','🔄 Đang kết nối lại…');
+      // Thử lấy token im lặng — prompt:'none' = không hiện bất kỳ popup nào
+      // Nếu Google còn session → thành công, nếu không → error_callback
+      gdTokenClient.requestAccessToken({prompt:'none'});
       return;
     }
   }catch(e){}
@@ -517,7 +536,12 @@ function addReloginBtn(){
   const btn=document.createElement('button');
   btn.id='sb-relogin';btn.className='sb-mini-btn backup';
   btn.textContent='🔑 Kết nối lại';
-  btn.onclick=()=>{ btn.remove(); _silentRefresh=false; gdTokenClient.requestAccessToken({prompt:''}); };
+  btn.onclick=()=>{
+    btn.remove();
+    _silentRefresh=false;
+    // Thử silent trước, nếu lỗi mới hiện popup
+    gdTokenClient.requestAccessToken({prompt:''});
+  };
   sb.prepend(btn);
 }
 
@@ -625,21 +649,31 @@ function renderLoggedIn(){
   hideEl('gd-guide');
   hideEl('gd-loggedout');
   showEl('gd-loggedin');
-  const pic=gdUser.picture
-    ?`<img class="gdrive-avatar" src="${gdUser.picture}" onerror="this.style.display='none'">`
-    :`<div class="gdrive-avatar-ph">${(gdUser.name||'?')[0].toUpperCase()}</div>`;
-  document.getElementById('gd-usercard').innerHTML=
-    `${pic}<div><div class="gdrive-uname">${gdUser.name||''}</div><div class="gdrive-uemail">${gdUser.email||''}</div></div>`;
+
+  // Email + avatar nhỏ trong panel cuối
+  const emailEl=document.getElementById('gd-email-small');
+  const avatarEl=document.getElementById('gd-avatar-small');
+  if(emailEl) emailEl.textContent=gdUser.email||'Google Drive';
+  if(avatarEl){
+    if(gdUser.picture){
+      avatarEl.innerHTML=`<img src="${gdUser.picture}" style="width:32px;height:32px;border-radius:50%;object-fit:cover;" onerror="this.parentElement.textContent='${(gdUser.name||'G')[0].toUpperCase()}'">`;
+    } else {
+      avatarEl.textContent=(gdUser.name||gdUser.email||'G')[0].toUpperCase();
+    }
+  }
+
   // Avatar trên statusbar
+  const exAv=document.getElementById('gd-sb-avatar');if(exAv)exAv.remove();
   if(gdUser.picture){
-    const ex=document.getElementById('gd-sb-avatar');if(ex)ex.remove();
     const av=document.createElement('img');
-    av.src=gdUser.picture;av.id='gd-sb-avatar';
+    av.src=gdUser.picture; av.id='gd-sb-avatar';
     av.style.cssText='width:22px;height:22px;border-radius:50%;border:1.5px solid #2e7d32;margin-right:5px;flex-shrink:0;';
+    av.onerror=function(){this.remove();};
     document.getElementById('gd-sb-left').prepend(av);
   }
+
   sbState(true);
-  if(gdSpreadsheetId)fileInfo('📊 Đã có file Google Sheets trên Drive');
+  if(gdSpreadsheetId) fileInfo('✅ Đồng bộ tự động bật');
 }
 
 /* ══ BACKUP (nút thủ công) ══ */
@@ -725,11 +759,23 @@ function setBadge(type,text){const b=document.getElementById('gd-badge');if(b){b
 function sbState(on){
   const s=id=>{const e=document.getElementById(id);if(e)e.style.display='inline-block';};
   const h=id=>{const e=document.getElementById(id);if(e)e.style.display='none';};
-  if(on){s('sb-btn-backup');s('sb-btn-restore');document.getElementById('sb-btn-backup').disabled=false;document.getElementById('sb-btn-restore').disabled=false;hideEl('gd-loggedout');showEl('gd-loggedin');}
-  else{h('sb-btn-backup');h('sb-btn-restore');showEl('gd-loggedout');hideEl('gd-loggedin');}
+  if(on){
+    s('sb-btn-backup');s('sb-btn-restore');
+    const bb=document.getElementById('sb-btn-backup');if(bb)bb.disabled=false;
+    const br=document.getElementById('sb-btn-restore');if(br)br.disabled=false;
+    hideEl('gd-loggedout');showEl('gd-loggedin');
+  }else{
+    h('sb-btn-backup');h('sb-btn-restore');
+    showEl('gd-loggedout');hideEl('gd-loggedin');
+  }
 }
-function setDriveBtn(d){['gd-btn-backup','gd-btn-restore','sb-btn-backup','sb-btn-restore'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=d;});}
-function fileInfo(html){const el=document.getElementById('gd-fileinfo');el.innerHTML=html;el.classList.add('show');el.style.display='block';}
+function setDriveBtn(d){['sb-btn-backup','sb-btn-restore'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=d;});}
+function fileInfo(html){
+  const el=document.getElementById('gd-fileinfo');
+  if(!el)return;
+  el.textContent=html.replace(/<[^>]+>/g,''); // strip HTML tags for inline display
+  el.style.display='block';
+}
 function toast(msg,type=''){const t=document.getElementById('toast');t.textContent=msg;t.className='show'+(type?' '+type:'');clearTimeout(_toastT);_toastT=setTimeout(()=>{t.className='';},3500);}
 
 /* ══ APP CORE ══ */
