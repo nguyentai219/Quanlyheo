@@ -13,6 +13,7 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <script src="https://accounts.google.com/gsi/client" async></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js" async></script>
 <style>
 :root{
   --green:#2e7d32;--blue:#1565c0;--red:#c62828;
@@ -129,6 +130,13 @@ input{
 .gd-btn.backup {background:#34a853;color:#fff;}
 .gd-btn.restore{background:#fbbc05;color:#333;}
 .gd-btn.signout{background:#f1f3f4;color:#555;border:1px solid #ddd;}
+.sb-panel{background:#fff;border-radius:14px;box-shadow:0 4px 14px rgba(62,207,142,.18);border:2px solid #3ecf8e;overflow:hidden;margin-top:16px;}
+.sb-topbar{background:linear-gradient(135deg,#3ecf8e,#249361);padding:13px 16px;display:flex;align-items:center;gap:10px;color:#fff;font-weight:700;font-size:15px;}
+.sb-panel input{margin:6px 0;padding:12px;font-size:16px;}
+.sb-row{display:flex;gap:8px;margin-top:6px;}
+.sb-row button{flex:1;padding:12px 6px;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;}
+.sb-row button:disabled{opacity:.45;cursor:not-allowed;}
+.sb-status{font-size:12px;color:#666;margin-top:8px;text-align:center;}
 .gd-sheets-note{background:#f3f8ff;border:1px solid #c2d9ff;border-radius:8px;padding:10px 13px;font-size:13px;color:#1a237e;margin-bottom:10px;line-height:1.6;}
 
 /* ══ APP STYLES ══ */
@@ -265,6 +273,36 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
         <div id="gd-fileinfo" style="font-size:11px;color:#666;margin-top:8px;text-align:center;display:none;"></div>
       </div>
 
+    </div>
+  </div>
+</div>
+
+<!-- ══ SUPABASE ══ -->
+<div style="padding:0 10px 30px">
+  <div class="section-divider"><span class="section-divider-text">── SUPABASE ──</span></div>
+  <div class="sb-panel">
+    <div class="sb-topbar">⚡ Supabase — Đồng bộ nhiều máy</div>
+    <div style="padding:14px 15px">
+      <div id="sb-loggedout">
+        <input type="email" id="sb-email" placeholder="Email" autocomplete="username">
+        <input type="password" id="sb-pass" placeholder="Mật khẩu (ít nhất 6 ký tự)" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbSignIn()">
+        <div class="sb-row">
+          <button id="sb-btn-in" style="background:#3ecf8e;color:#fff" onclick="sbSignIn()">🔐 Đăng nhập</button>
+          <button id="sb-btn-up" style="background:#f1f3f4;color:#333;border:1px solid #ddd" onclick="sbSignUp()">✍️ Tạo tài khoản</button>
+        </div>
+        <div style="font-size:12px;color:#666;text-align:center;margin-top:8px;line-height:1.5">Đăng nhập cùng 1 tài khoản trên nhiều điện thoại → dữ liệu heo tự đồng bộ giữa các máy</div>
+      </div>
+      <div id="sb-loggedin" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
+          <div id="sb-user-email" style="font-size:13px;font-weight:700;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;"></div>
+          <button onclick="sbSignOut()" style="flex-shrink:0;padding:6px 11px;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;font-size:12px;font-weight:700;color:#555;cursor:pointer;">🚪 Đăng xuất</button>
+        </div>
+        <div class="sb-row">
+          <button id="sb-btn-push" style="background:#34a853;color:#fff" onclick="sbPush(true)">☁️ Đẩy lên</button>
+          <button id="sb-btn-pull" style="background:#fbbc05;color:#333" onclick="sbPullManual()">📥 Tải về</button>
+        </div>
+      </div>
+      <div id="sb-status" class="sb-status"></div>
     </div>
   </div>
 </div>
@@ -471,6 +509,7 @@ async function confirmRebreed(){
 function init(){
   document.getElementById('breedDate').value=today();
   loadLocal();
+  initSupabase();
   if(typeof google!=='undefined'&&google.accounts) setupGDrive();
   else window.addEventListener('load',()=>setTimeout(setupGDrive,600));
 }
@@ -748,6 +787,174 @@ function toast(msg,type=''){
 
 
 
+/* ══ SUPABASE — đồng bộ nhiều máy ══
+   Bảng quanlyheo_data: 1 dòng / tài khoản, cột pigs (jsonb) = toàn bộ dữ liệu heo.
+   Meta trên máy: rev = updated_at của bản trên mạng lần đồng bộ cuối; dirty = máy có thay đổi chưa đẩy lên. */
+const SB_URL='https://tfxtxtwfeepxgzbxtafv.supabase.co';
+const SB_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmeHR4dHdmZWVweGd6Ynh0YWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDMxODMsImV4cCI6MjA5OTI3OTE4M30.PQbSxACwlPJfDBWLCMaTb44UHbHcPsborEscZMKRtCE';
+const SB_TABLE='quanlyheo_data';
+const SB_META_KEY='QUANLYHEO_SB_META';
+let _sbLoadTries=0,sbClient=null,sbUser=null,_sbTimer=null,_sbBusy=false,_sbAgain=false;
+
+function sbMeta(){try{return JSON.parse(localStorage.getItem(SB_META_KEY))||{};}catch(e){return{};}}
+function sbSetMeta(m){localStorage.setItem(SB_META_KEY,JSON.stringify({...sbMeta(),...m}));}
+function sbStatus(t){const el=document.getElementById('sb-status');if(el)el.textContent=t||'';}
+function sbBtns(d){['sb-btn-in','sb-btn-up','sb-btn-push','sb-btn-pull'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=d;});}
+function sbRenderUI(){
+  document.getElementById('sb-loggedout').style.display=sbUser?'none':'block';
+  document.getElementById('sb-loggedin').style.display=sbUser?'block':'none';
+  if(sbUser)document.getElementById('sb-user-email').textContent='👤 '+sbUser.email;
+}
+function sbErrMsg(e){
+  const m=(e&&(e.message||e.error_description))||String(e);
+  if(/Invalid login credentials/i.test(m))return'Sai email hoặc mật khẩu';
+  if(/Email not confirmed/i.test(m))return'Email chưa xác nhận — mở hộp thư để xác nhận';
+  if(/already registered/i.test(m))return'Email này đã có tài khoản — hãy đăng nhập';
+  if(/relation .* does not exist|Could not find the table/i.test(m))return'Chưa tạo bảng '+SB_TABLE+' trên Supabase';
+  if(/Failed to fetch|NetworkError/i.test(m))return'Không có mạng';
+  return m;
+}
+
+function initSupabase(){
+  if(!window.supabase){
+    if(!navigator.onLine){sbStatus('Không có mạng — đồng bộ Supabase sẽ chạy khi có mạng');window.addEventListener('online',initSupabase,{once:true});return;}
+    if(++_sbLoadTries>30){sbStatus('⚠️ Không tải được thư viện Supabase');return;}
+    setTimeout(initSupabase,600);return;
+  }
+  if(sbClient)return;
+  // storageKey riêng: không dùng chung phiên đăng nhập với app khác cùng tên miền
+  sbClient=window.supabase.createClient(SB_URL,SB_ANON_KEY,{auth:{storageKey:'quanlyheo-sb-auth',persistSession:true,autoRefreshToken:true}});
+  sbClient.auth.getSession().then(({data})=>{
+    sbUser=data&&data.session?data.session.user:null;
+    sbRenderUI();
+    if(sbUser)sbSync();
+  });
+  sbClient.auth.onAuthStateChange((ev,session)=>{
+    sbUser=session?session.user:null;
+    sbRenderUI();
+  });
+  // Mở lại app / có mạng lại → kiểm tra bản mới từ máy khác
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&sbUser)sbSync();});
+  window.addEventListener('online',()=>{if(sbUser)sbSync();});
+  setInterval(()=>{if(sbUser&&document.visibilityState==='visible'&&navigator.onLine)sbSync();},60000);
+}
+
+async function sbSignIn(){
+  if(!sbClient)return toast('Đang tải Supabase, thử lại sau giây lát','err');
+  const email=document.getElementById('sb-email').value.trim(),password=document.getElementById('sb-pass').value;
+  if(!email||!password)return showAlert('⚠️','Thiếu thông tin','Nhập <b>email</b> và <b>mật khẩu</b>!');
+  sbBtns(true);sbStatus('Đang đăng nhập…');
+  const{data,error}=await sbClient.auth.signInWithPassword({email,password});
+  sbBtns(false);
+  if(error){sbStatus('');return showAlert('❌','Đăng nhập thất bại',esc(sbErrMsg(error)));}
+  sbUser=data.user;sbRenderUI();document.getElementById('sb-pass').value='';
+  toast('✅ Đã đăng nhập Supabase','ok');
+  sbSync(true);
+}
+async function sbSignUp(){
+  if(!sbClient)return toast('Đang tải Supabase, thử lại sau giây lát','err');
+  const email=document.getElementById('sb-email').value.trim(),password=document.getElementById('sb-pass').value;
+  if(!email||password.length<6)return showAlert('⚠️','Thiếu thông tin','Nhập <b>email</b> và <b>mật khẩu từ 6 ký tự</b>!');
+  sbBtns(true);sbStatus('Đang tạo tài khoản…');
+  const{data,error}=await sbClient.auth.signUp({email,password});
+  sbBtns(false);sbStatus('');
+  if(error)return showAlert('❌','Tạo tài khoản thất bại',esc(sbErrMsg(error)));
+  if(!data.session)return showAlert('📧','Kiểm tra email','Đã gửi thư xác nhận tới <b>'+esc(email)+'</b>.<br>Bấm link trong thư rồi quay lại đây <b>Đăng nhập</b>.');
+  sbUser=data.user;sbRenderUI();document.getElementById('sb-pass').value='';
+  toast('✅ Đã tạo tài khoản','ok');
+  sbSync(true);
+}
+async function sbSignOut(){
+  const ok=await showPopup({icon:'🚪',title:'Đăng xuất Supabase',msg:'Dữ liệu trên máy này vẫn giữ nguyên. Đăng xuất?',okText:'Đăng xuất',okClass:'danger'});
+  if(!ok)return;
+  clearTimeout(_sbTimer);
+  await sbClient.auth.signOut();
+  sbUser=null;localStorage.removeItem(SB_META_KEY);sbRenderUI();sbStatus('');
+  toast('Đã đăng xuất Supabase');
+}
+
+/* Máy có thay đổi → đánh dấu, đẩy lên sau 1.5s */
+function sbMarkDirty(){
+  sbSetMeta({dirty:true});
+  if(!sbUser)return;
+  clearTimeout(_sbTimer);
+  _sbTimer=setTimeout(()=>sbSync(),1500);
+}
+
+/* Đồng bộ 2 chiều: tải bản mới từ máy khác, đẩy thay đổi của máy này; 2 bên cùng sửa → hỏi người dùng */
+async function sbSync(firstLogin){
+  if(!sbClient||!sbUser||!navigator.onLine)return;
+  if(_sbBusy){_sbAgain=true;return;}
+  _sbBusy=true;
+  try{
+    const{data:row,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
+    if(error)throw error;
+    const meta=sbMeta();
+    const remoteNew=row&&row.updated_at!==meta.rev;
+    if(!row){
+      await sbUpload();                                   // tài khoản mới → đẩy dữ liệu máy này lên
+    }else if(remoteNew&&(firstLogin||!meta.rev)&&pigs.length&&JSON.stringify(normalizePigs(row.pigs))!==JSON.stringify(pigs)){
+      await sbAskConflict(row,'Máy này và tài khoản đều đã có dữ liệu heo.');
+    }else if(remoteNew&&meta.dirty&&pigs.length){
+      await sbAskConflict(row,'Dữ liệu vừa được sửa trên <b>máy khác</b> trong lúc máy này cũng có thay đổi.');
+    }else if(remoteNew){
+      sbApply(row);                                       // máy khác vừa sửa → lấy về
+    }else if(meta.dirty){
+      await sbUpload();
+    }else sbStatus('✅ Đã đồng bộ');
+  }catch(e){
+    sbStatus('⚠️ Lỗi đồng bộ: '+sbErrMsg(e));
+    console.warn('Supabase sync:',e);
+  }
+  _sbBusy=false;
+  if(_sbAgain){_sbAgain=false;sbSync();}
+}
+async function sbUpload(){
+  sbStatus('Đang đẩy lên…');
+  const sent=JSON.stringify(pigs);
+  const{data,error}=await sbClient.from(SB_TABLE).upsert({user_id:sbUser.id,pigs:JSON.parse(sent),updated_at:new Date().toISOString()},{onConflict:'user_id'}).select('updated_at').single();
+  if(error)throw error;
+  // Trong lúc đang gửi mà người dùng sửa tiếp → vẫn giữ dirty để lần sau đẩy tiếp
+  sbSetMeta({rev:data.updated_at,dirty:JSON.stringify(pigs)!==sent});
+  sbStatus('✅ Đã đồng bộ lúc '+new Date().toLocaleTimeString('vi-VN'));
+}
+function sbApply(row){
+  const data=normalizePigs(row.pigs);
+  if(!data){sbStatus('⚠️ Dữ liệu trên Supabase không hợp lệ — bỏ qua');return;}
+  pigs=data;saveLocal(true);
+  sbSetMeta({rev:row.updated_at,dirty:false});
+  sbStatus('📥 Đã nhận dữ liệu mới lúc '+new Date().toLocaleTimeString('vi-VN'));
+}
+async function sbAskConflict(row,why){
+  const n=Array.isArray(row.pigs)?row.pigs.length:0;
+  const t=new Date(row.updated_at).toLocaleString('vi-VN');
+  const useRemote=await showPopup({icon:'🔀',title:'Chọn bản dữ liệu',
+    msg:`${why}<br><br>☁️ Trên Supabase: <b>${n} con</b> (lúc ${t})<br>📱 Trên máy này: <b>${pigs.length} con</b><br><br>Chọn bản muốn giữ — bản còn lại sẽ bị thay thế.`,
+    okText:'☁️ Lấy bản Supabase',cancelText:'📱 Giữ bản máy này'});
+  if(useRemote)sbApply(row);else await sbUpload();
+}
+async function sbPush(manual){
+  if(!sbUser)return;
+  sbBtns(true);
+  try{await sbUpload();if(manual)toast('☁️ Đã đẩy lên Supabase','ok');}
+  catch(e){sbStatus('⚠️ '+sbErrMsg(e));toast('Lỗi: '+sbErrMsg(e),'err');}
+  sbBtns(false);
+}
+async function sbPullManual(){
+  if(!sbUser)return;
+  sbBtns(true);
+  try{
+    const{data:row,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
+    if(error)throw error;
+    if(!row){toast('Tài khoản chưa có dữ liệu trên Supabase','err');}
+    else{
+      const ok=await showPopup({icon:'📥',title:'Tải về từ Supabase',msg:`Bản lúc <b>${new Date(row.updated_at).toLocaleString('vi-VN')}</b> (${Array.isArray(row.pigs)?row.pigs.length:0} con).<br><br>⚠️ Sẽ <b>ghi đè</b> dữ liệu trên máy này. Tiếp tục?`,okText:'Tải về',okClass:'danger'});
+      if(ok){sbApply(row);toast('📥 Đã tải về từ Supabase','ok');}
+    }
+  }catch(e){sbStatus('⚠️ '+sbErrMsg(e));toast('Lỗi: '+sbErrMsg(e),'err');}
+  sbBtns(false);
+}
+
 /* ══ APP CORE ══ */
 function loadLocal(){const d=localStorage.getItem(STORAGE_KEY);if(d){try{pigs=normalizePigs(JSON.parse(d))||[];}catch(e){pigs=[];}}render();}
 
@@ -756,10 +963,11 @@ let _syncTimer=null;
 let _syncPending=false;          // đang có thay đổi chưa sync
 let _syncInProgress=false;       // đang upload
 
-function saveLocal(){
+function saveLocal(fromSupabase){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(pigs));
   render();
   scheduleSync();
+  if(!fromSupabase)sbMarkDirty();
 }
 
 /* Lên lịch sync sau 1.5s (debounce - tránh sync liên tục khi thao tác nhanh) */
