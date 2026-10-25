@@ -1,5 +1,5 @@
 // Đổi số phiên bản mỗi lần cập nhật app → điện thoại tự nhận bản mới
-const CACHE_NAME = 'quanlyheo-v1.2.0';
+const CACHE_NAME = 'quanlyheo-v1.2.1';
 const ASSETS = [
   '/Quanlyheo/',
   '/Quanlyheo/index.html',
@@ -16,11 +16,11 @@ self.addEventListener('install', e => {
   self.skipWaiting();
 });
 
-// Kích hoạt: xóa cache cũ
+// Kích hoạt: chỉ xoá cache cũ CỦA APP NÀY — cache dùng chung cả tên miền, không đụng tới app khác (VD Mủ Cao Su)
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+      Promise.all(keys.filter(k => k.startsWith('quanlyheo-') && k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   );
   self.clients.claim();
