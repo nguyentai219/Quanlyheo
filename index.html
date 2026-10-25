@@ -790,10 +790,11 @@ function toast(msg,type=''){
 /* ══ SUPABASE — đồng bộ nhiều máy ══
    Bảng quanlyheo_data: 1 dòng / tài khoản, cột pigs (jsonb) = toàn bộ dữ liệu heo.
    Meta trên máy: rev = updated_at của bản trên mạng lần đồng bộ cuối; dirty = máy có thay đổi chưa đẩy lên. */
-const SB_URL='https://tfxtxtwfeepxgzbxtafv.supabase.co';
-const SB_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRmeHR4dHdmZWVweGd6Ynh0YWZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM3MDMxODMsImV4cCI6MjA5OTI3OTE4M30.PQbSxACwlPJfDBWLCMaTb44UHbHcPsborEscZMKRtCE';
+const SB_URL='https://rqthturqwljxpoeyelrb.supabase.co';
+const SB_ANON_KEY='sb_publishable_spBqsFpBZdC8nKe0WIEqeg_CMyQWnxO';
 const SB_TABLE='quanlyheo_data';
-const SB_META_KEY='QUANLYHEO_SB_META';
+const SB_META_KEY='QUANLYHEO_SB_META_V2';
+// Project Supabase RIÊNG của app heo (Singapore) — không dùng chung với app Mủ Cao Su
 let _sbLoadTries=0,sbClient=null,sbUser=null,_sbTimer=null,_sbBusy=false,_sbAgain=false;
 
 function sbMeta(){try{return JSON.parse(localStorage.getItem(SB_META_KEY))||{};}catch(e){return{};}}
@@ -823,7 +824,7 @@ function initSupabase(){
   }
   if(sbClient)return;
   // storageKey riêng: không dùng chung phiên đăng nhập với app khác cùng tên miền
-  sbClient=window.supabase.createClient(SB_URL,SB_ANON_KEY,{auth:{storageKey:'quanlyheo-sb-auth',persistSession:true,autoRefreshToken:true}});
+  sbClient=window.supabase.createClient(SB_URL,SB_ANON_KEY,{auth:{storageKey:'quanlyheo-sb-auth-v2',persistSession:true,autoRefreshToken:true}});
   sbClient.auth.getSession().then(({data})=>{
     sbUser=data&&data.session?data.session.user:null;
     sbRenderUI();
