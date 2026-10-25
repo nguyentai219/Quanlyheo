@@ -1,4 +1,5 @@
-const CACHE_NAME = 'quanlyheo-v1';
+// Đổi số phiên bản mỗi lần cập nhật app → điện thoại tự nhận bản mới
+const CACHE_NAME = 'quanlyheo-v1.1.0';
 const ASSETS = [
   '/Quanlyheo/',
   '/Quanlyheo/index.html',
@@ -27,19 +28,23 @@ self.addEventListener('activate', e => {
 
 // Fetch: ưu tiên mạng, fallback cache (cho phép dùng offline)
 self.addEventListener('fetch', e => {
-  // Bỏ qua các request tới Google APIs (cần mạng)
-  if (e.request.url.includes('googleapis.com') || 
-      e.request.url.includes('accounts.google.com')) {
-    return;
-  }
+  const req = e.request;
+  // Chỉ xử lý GET cùng trang web; Google API/đăng nhập để trình duyệt tự gửi
+  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(req)
       .then(res => {
-        // Cache lại response mới nhất
-        const resClone = res.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(e.request, resClone));
+        // Chỉ cache phản hồi thành công
+        if (res.ok) {
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(req, resClone));
+        }
         return res;
       })
-      .catch(() => caches.match(e.request))
+      .catch(() =>
+        caches.match(req, { ignoreSearch: true }).then(r =>
+          r || (req.mode === 'navigate' ? caches.match('/Quanlyheo/index.html') : undefined)
+        )
+      )
   );
 });

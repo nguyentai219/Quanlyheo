@@ -366,7 +366,7 @@ const GD_META_KEY='QUANLYHEO_GDRIVE_META';
 
 let pigs=[],currentPigId=null,currentExpIndex=null,currentRebreedId=null;
 let gdToken=null,gdUser=null,gdSpreadsheetId=null,gdTokenClient=null;
-let _toastT=null,_popupResolve=null;
+let _toastT=null,_popupResolve=null,_silentRefresh=false;
 
 const COLORS=['#2e7d32','#1565c0','#c62828','#ef6c00','#6a1b9a','#00838f','#4e342e'];
 const M_VACS=[
@@ -410,6 +410,7 @@ function getAllExpNames(){
   pigs.forEach(p=>(p.expenses||[]).forEach(e=>{if(e.desc)set.add(e.desc);}));
   return [...set];
 }
+let _acNames=[];
 function showAutocomplete(){
   const inp=document.getElementById('expDesc');
   const val=inp.value.trim().toLowerCase();
@@ -417,9 +418,8 @@ function showAutocomplete(){
   if(!val){list.style.display='none';return;}
   const names=getAllExpNames().filter(n=>n.toLowerCase().includes(val)&&n!==inp.value);
   if(!names.length){list.style.display='none';return;}
-  list.innerHTML=names.slice(0,8).map(n=>
-    `<div class="autocomplete-item" onclick="selectAC('${n.replace(/\\/g,'\\\\').replace(/'/g,"\\'")}')">${n}</div>`
-  ).join('');
+  _acNames=names.slice(0,8);
+  list.innerHTML=_acNames.map((n,i)=>`<div class="autocomplete-item" onclick="selectAC(_acNames[${i}])">${esc(n)}</div>`).join('');
   list.style.display='block';
 }
 function selectAC(name){
@@ -443,7 +443,7 @@ function openRebreedModal(pid){
   currentRebreedId=pid;
   const lần=(p.breedCount||1);
   document.getElementById('rebreed-info').innerHTML=
-    `🐷 Heo: <b>${p.name}</b><br>`+
+    `🐷 Heo: <b>${esc(p.name)}</b><br>`+
     `📅 Phối lần ${lần}: <b>${fmtFull(p.breedDate)}</b><br>`+
     `⚠️ Sẽ chuyển sang <b>phối lần ${lần+1}</b>, cập nhật lịch tiêm theo ngày dự sinh mới.<br>`+
     `<span style="color:#888;font-size:13px">Lịch tiêm đã đánh dấu sẽ được giữ nguyên.</span>`;
@@ -458,9 +458,8 @@ async function confirmRebreed(){
   const p=pigs.find(x=>x.id===currentRebreedId);
   if(!p)return;
   const lần=(p.breedCount||1)+1;
-  const due=new Date(d);due.setDate(due.getDate()+114);
   p.breedDate=d;
-  p.dueDate=due.toISOString().split('T')[0];
+  p.dueDate=addDays(d,114);
   p.actualBirth=null;
   p.breedCount=lần;
   closeRebreedModal();
@@ -512,10 +511,11 @@ function setupGDrive(){
 let _pendingAction=null; // 'backup' | 'restore' | null
 
 function addReloginBtn(){
-  const sb=document.getElementById('gd-sb-right');
+  const sb=document.getElementById('gd-loggedin');
   if(!sb||document.getElementById('sb-relogin'))return;
   const btn=document.createElement('button');
-  btn.id='sb-relogin';btn.className='sb-mini-btn backup';
+  btn.id='sb-relogin';
+  btn.style.cssText='width:100%;margin-bottom:10px;padding:11px;background:#1565c0;color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;';
   btn.textContent='🔑 Kết nối lại';
   btn.onclick=()=>{
     btn.remove();
@@ -523,7 +523,7 @@ function addReloginBtn(){
     // Thử silent trước, nếu lỗi mới hiện popup
     gdTokenClient.requestAccessToken({prompt:''});
   };
-  sb.prepend(btn);
+  sb.insertBefore(btn,sb.children[1]||null);
 }
 
 /* ══ GOOGLE AUTH ══ */
@@ -675,15 +675,16 @@ async function gdRestore(){
     const ok=await showPopup({icon:'📥',title:'Khôi phục dữ liệu',msg:`Bản sao lưu lúc <b>${mt}</b>.<br><br>⚠️ Sẽ <b>ghi đè</b> dữ liệu hiện tại. Tiếp tục?`,okText:'Khôi phục',okClass:'danger'});
     if(!ok){setSyncDot('online','Đã kết nối');setDriveBtn(false);return;}
     setSyncDot('busy','Đang tải…');
-    const batch=await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values:batchGet?ranges=%27CHI+TI%E1%BA%BET+HEO%27&ranges=%27CHI+PH%C3%AD%27&ranges=%27L%E1%BB%8ACH+TI%C3%8AM%27&ranges=%27XU%E1%BA%A4T+CHU%E1%BB%92NG%27`);
+    const batch=await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}/values:batchGet?ranges=%27CHI+TI%E1%BA%BET+HEO%27&ranges=%27CHI+PH%C3%AD%27&ranges=%27L%E1%BB%8ACH+TI%C3%8AM%27&ranges=%27XU%E1%BA%A4T+CHU%E1%BB%92NG%27&valueRenderOption=UNFORMATTED_VALUE`);
     const[detData,expData,vacData,sellData]=batch.valueRanges.map(s=>(s&&s.values)||[]);
     if(detData.length<2){setSyncDot('online','Đã kết nối');toast('File sao lưu trống!','err');setDriveBtn(false);return;}
     const newPigs=[];
-    for(let i=1;i<detData.length;i++){const r=detData[i];if(!r[1])continue;newPigs.push({dateAdded:r[0]||today(),name:r[1]||'',breedDate:parseViDate(r[2]),breedCount:parseInt(r[3])||1,dueDate:parseViDate(r[4]),actualBirth:r[5]&&r[5]!=='Chưa sinh'?parseViDate(r[5]):null,expenses:[],doneVacs:{},sellPrice:r[7]&&r[7]!=='Chưa bán'?parseInt(r[7])||0:null,sellDate:null,color:COLORS[newPigs.length%COLORS.length],id:newPigs.length+1});}
-    for(let i=1;i<expData.length;i++){const r=expData[i];if(!r[1]||r[3]==='(Chưa có)')continue;const p=newPigs.find(x=>x.name===r[1]&&x.dateAdded===r[0]);if(p)p.expenses.push({date:parseViDate(r[2]),desc:r[3]||'',amount:parseInt(r[4])||0,edited:r[5]==='Có'});}
-    for(let i=1;i<vacData.length;i++){const r=vacData[i];if(!r[1])continue;const p=newPigs.find(x=>x.name===r[1]&&x.dateAdded===r[0]);if(p&&r[6]==='✅ Đã tiêm')p.doneVacs[(r[2]==='Heo mẹ'?'M':'B')+'_'+r[3]]=true;}
-    for(let i=1;i<sellData.length;i++){const r=sellData[i];if(!r[1]||r[1]==='(Chưa có)')continue;const p=newPigs.find(x=>x.name===r[1]&&x.dateAdded===r[0]);if(p)p.sellDate=parseViDate(r[3]);}
-    pigs=newPigs;gdSpreadsheetId=ssId;saveMeta();saveLocal();
+    for(let i=1;i<detData.length;i++){const r=detData[i];if(!r[1])continue;newPigs.push({_key:String(r[0]||''),dateAdded:r[0]||today(),name:String(r[1]),breedDate:parseViDate(r[2]),breedCount:parseInt(r[3])||1,dueDate:parseViDate(r[4]),actualBirth:r[5]&&r[5]!=='Chưa sinh'?parseViDate(r[5]):null,expenses:[],doneVacs:{},sellPrice:(r[7]!==undefined&&r[7]!==''&&r[7]!=='Chưa bán')?parseInt(r[7])||0:null,sellDate:null,color:COLORS[newPigs.length%COLORS.length],id:newPigs.length+1});}
+    for(let i=1;i<expData.length;i++){const r=expData[i];if(!r[1]||r[3]==='(Chưa có)')continue;const p=newPigs.find(x=>x.name===String(r[1])&&x._key===String(r[0]||''));if(p)p.expenses.push({date:parseViDate(r[2]),desc:String(r[3]||''),amount:parseInt(r[4])||0,edited:r[5]==='Có'});}
+    for(let i=1;i<vacData.length;i++){const r=vacData[i];if(!r[1])continue;const p=newPigs.find(x=>x.name===String(r[1])&&x._key===String(r[0]||''));if(p&&r[6]==='✅ Đã tiêm')p.doneVacs[(r[2]==='Heo mẹ'?'M':'B')+'_'+r[3]]=true;}
+    for(let i=1;i<sellData.length;i++){const r=sellData[i];if(!r[1]||r[1]==='(Chưa có)')continue;const p=newPigs.find(x=>x.name===String(r[1])&&x._key===String(r[0]||''));if(p)p.sellDate=parseViDate(r[3]);}
+    newPigs.forEach(p=>delete p._key);
+    pigs=normalizePigs(newPigs.filter(p=>p.breedDate))||[];gdSpreadsheetId=ssId;saveMeta();saveLocal();
     setSyncDot('online','Đã đồng bộ');
     fileInfo(`📥 Khôi phục lúc ${mt}`,ssId);
     toast('Khôi phục thành công!','ok');
@@ -748,7 +749,7 @@ function toast(msg,type=''){
 
 
 /* ══ APP CORE ══ */
-function loadLocal(){const d=localStorage.getItem(STORAGE_KEY);if(d){try{pigs=JSON.parse(d);}catch(e){pigs=[];}}render();}
+function loadLocal(){const d=localStorage.getItem(STORAGE_KEY);if(d){try{pigs=normalizePigs(JSON.parse(d))||[];}catch(e){pigs=[];}}render();}
 
 /* ── Auto-sync sau mỗi lần lưu ── */
 let _syncTimer=null;
@@ -801,17 +802,16 @@ async function gdBackupSilent(){
     const c=await gFetch('https://sheets.googleapis.com/v4/spreadsheets',{method:'POST',body:JSON.stringify({properties:{title:SS_NAME},sheets:[{properties:{title:'TỔNG QUAN',sheetId:0}},{properties:{title:'CHI TIẾT HEO',sheetId:1}},{properties:{title:'LỊCH TIÊM',sheetId:2}},{properties:{title:'CHI PHÍ',sheetId:3}},{properties:{title:'XUẤT CHUỒNG',sheetId:4}}]})});
     ssId=c.spreadsheetId;gdSpreadsheetId=ssId;saveMeta();
   }
-  const now=new Date();now.setHours(0,0,0,0);
   const ts=new Date().toLocaleString('vi-VN');
   const active=pigs.filter(p=>p.sellPrice===null),sold=pigs.filter(p=>p.sellPrice!==null);
   const totExp=active.reduce((s,p)=>s+(p.expenses||[]).reduce((x,e)=>x+e.amount,0),0);
   const totRev=sold.reduce((s,p)=>s+p.sellPrice,0),totCS=sold.reduce((s,p)=>s+(p.expenses||[]).reduce((x,e)=>x+e.amount,0),0);
   const ovRows=[['🐷 QUẢN LÝ HEO — BẢN TỔNG QUAN','','',''],['Cập nhật lúc:',ts,'',''],['','','',''],['CHỈ SỐ','GIÁ TRỊ','',''],['Tổng heo đang nuôi',active.length,'',''],['Tổng chi (đang nuôi)',totExp,'',''],['Tổng heo đã xuất',sold.length,'',''],['Tổng doanh thu',totRev,'',''],['Tổng chi (đã xuất)',totCS,'',''],['Lợi nhuận ròng',totRev-totCS,'',''],['','','',''],['HEO GẦN ĐẺ NHẤT','NGÀY DỰ KIẾN','SỐ NGÀY CÒN','TRẠNG THÁI']];
-  [...active].sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,10).forEach(p=>{const dl=Math.ceil((new Date(p.dueDate)-now)/86400000);ovRows.push([p.name,fmtFull(p.dueDate),dl>0?dl:'Quá ngày',p.actualBirth?'Đã sinh':'Chờ sinh']);});
+  [...active].sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,10).forEach(p=>{const dl=daysFromToday(p.dueDate);ovRows.push([p.name,fmtFull(p.dueDate),dl>0?dl:dl===0?'Hôm nay':'Quá ngày',p.actualBirth?'Đã sinh':'Chờ sinh']);});
   const detRows=[['NGÀY THÊM','TÊN HEO','NGÀY PHỐI','LẦN PHỐI','DỰ KIẾN ĐẺ','SINH THỰC TẾ','TỔNG CHI','GIÁ BÁN','LỢI NHUẬN','TRẠNG THÁI']];
   pigs.forEach(p=>{const exp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);detRows.push([p.dateAdded||'',p.name,fmtFull(p.breedDate),p.breedCount||1,fmtFull(p.dueDate),p.actualBirth?fmtFull(p.actualBirth):'Chưa sinh',exp,p.sellPrice!==null?p.sellPrice:'Chưa bán',p.sellPrice!==null?p.sellPrice-exp:'',p.sellPrice!==null?'Đã xuất':'Đang nuôi']);});
   const vacRows=[['NGÀY THÊM','TÊN','LOẠI','VẮC XIN','NGÀY TIÊM','GIAI ĐOẠN','TRẠNG THÁI']];
-  pigs.forEach(p=>{M_VACS.forEach(v=>{let vd=new Date(v.dFB!==undefined?p.breedDate:(p.actualBirth||p.dueDate));if(v.dFB!==undefined)vd.setDate(vd.getDate()+v.dFB);else vd.setDate(vd.getDate()+v.dFBR);vacRows.push([p.dateAdded||'',p.name,'Heo mẹ',v.n,fmtFull(vd.toISOString().split('T')[0]),v.m,p.doneVacs['M_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});B_VACS.forEach(v=>{let vd=new Date(p.actualBirth||p.dueDate);vd.setDate(vd.getDate()+v.dFBR);vacRows.push([p.dateAdded||'',p.name,'Heo con',v.n,fmtFull(vd.toISOString().split('T')[0]),v.m,p.doneVacs['B_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});});
+  pigs.forEach(p=>{M_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo mẹ',v.n,fmtFull(vacDate(p,v,true)),v.m,p.doneVacs['M_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});B_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo con',v.n,fmtFull(vacDate(p,v,false)),v.m,p.doneVacs['B_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});});
   const expRows=[['NGÀY THÊM','TÊN','NGÀY CHI','KHOẢN CHI','SỐ TIỀN','SỬA']];
   pigs.forEach(p=>(p.expenses||[]).forEach(e=>expRows.push([p.dateAdded||'',p.name,fmtFull(e.date),e.desc,e.amount,e.edited?'Có':''])));
   if(expRows.length===1)expRows.push(['(Chưa có)','','','','','']);
@@ -825,8 +825,7 @@ async function gdBackupSilent(){
   [[0,3],[1,0],[2,0],[3,0],[4,0]].forEach(([sid,hr])=>fmtReqs.push({repeatCell:{range:{sheetId:sid,startRowIndex:hr,endRowIndex:hr+1},cell:{userEnteredFormat:{textFormat:{bold:true,foregroundColor:{red:1,green:1,blue:1}},backgroundColor:{red:.16,green:.49,blue:.95}}},fields:'userEnteredFormat(textFormat,backgroundColor)'}}));
   await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:fmtReqs})});
   // Cập nhật fileInfo
-  const link=`https://docs.google.com/spreadsheets/d/${ssId}`;
-  fileInfo(`✅ Đã đồng bộ lúc ${ts} — <a href="${link}" target="_blank" style="color:#1565c0">Mở Sheets ↗</a>`);
+  fileInfo(`✅ Đã đồng bộ lúc ${ts}`,ssId);
 }
 
 /* Hiện trạng thái đồng bộ nhỏ trên statusbar */
@@ -872,10 +871,9 @@ function addPig(){
   if(!n)return showAlert('⚠️','Thiếu thông tin','Vui lòng nhập <b>Tên hoặc Số tai</b> của heo!');
   if(!d)return showAlert('⚠️','Thiếu ngày','Vui lòng chọn <b>ngày phối giống</b>!');
   const maxId=pigs.length>0?Math.max(...pigs.map(p=>p.id)):0;const id=maxId+1;
-  const due=new Date(d);due.setDate(due.getDate()+114);
   pigs.push({
     id,name:n,breedDate:d,breedCount:1,
-    dueDate:due.toISOString().split('T')[0],
+    dueDate:addDays(d,114),
     actualBirth:null,doneVacs:{},expenses:[],
     sellPrice:null,sellDate:null,
     color:COLORS[id%COLORS.length],
@@ -889,7 +887,7 @@ function addPig(){
 async function toggleLock(pid){
   const p=pigs.find(x=>x.id===pid);
   if(p&&p.sellPrice!==null){
-    const ok=await showPopup({icon:'🔓',title:'Mở khoá heo',msg:`Mở khoá <b>${p.name}</b> để chỉnh sửa lại dữ liệu?`,okText:'Mở khoá'});
+    const ok=await showPopup({icon:'🔓',title:'Mở khoá heo',msg:`Mở khoá <b>${esc(p.name)}</b> để chỉnh sửa lại dữ liệu?`,okText:'Mở khoá'});
     if(ok){p.sellPrice=null;p.sellDate=null;saveLocal();}
   }
 }
@@ -897,14 +895,14 @@ async function updateBirthDate(pid,val){
   const p=pigs.find(x=>x.id===pid);
   if(p&&val){
     const ok=await showPopup({icon:'🐣',title:'Cập nhật ngày sinh',msg:`Xác nhận ngày sinh thực tế: <b>${fmtFull(val)}</b>?`,okText:'Xác nhận'});
-    if(ok){p.actualBirth=val;saveLocal();}
+    if(ok){p.actualBirth=val;saveLocal();}else render();
   }
 }
 async function toggleVac(pid,type,name){
   const p=pigs.find(x=>x.id===pid);
   if(p.sellPrice!==null)return;
   const k=type+'_'+name;const isDone=p.doneVacs[k];
-  const ok=await showPopup({icon:isDone?'↩️':'💉',title:isDone?'Huỷ xác nhận tiêm':'Xác nhận đã tiêm',msg:`Vắc xin: <b>${name}</b><br>Heo: <b>${p.name}</b>`,okText:isDone?'Huỷ tiêm':'Đã tiêm rồi',okClass:isDone?'danger':''});
+  const ok=await showPopup({icon:isDone?'↩️':'💉',title:isDone?'Huỷ xác nhận tiêm':'Xác nhận đã tiêm',msg:`Vắc xin: <b>${name}</b><br>Heo: <b>${esc(p.name)}</b>`,okText:isDone?'Huỷ tiêm':'Đã tiêm rồi',okClass:isDone?'danger':''});
   if(ok){p.doneVacs[k]=!p.doneVacs[k];saveLocal();}
 }
 function openExpModal(pid,idx=null){
@@ -951,20 +949,70 @@ async function confirmSell(){
   if(isNaN(amount)){showAlert('⚠️','Lỗi','Vui lòng nhập <b>số tiền hợp lệ</b>!');return;}
   const p=pigs.find(x=>x.id===currentPigId);
   const totExp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);const profit=amount-totExp;
-  const ok=await showPopup({icon:'🏷️',title:'Xác nhận xuất chuồng',msg:`Heo: <b>${p.name}</b><br>Tổng chi phí: <b>${totExp.toLocaleString()}đ</b><br>Tiền bán: <b>${amount.toLocaleString()}đ</b><br><br>${profit>=0?'<span style="color:#2e7d32;font-weight:700">💰 Lợi nhuận: '+profit.toLocaleString()+'đ</span>':'<span style="color:#d32f2f;font-weight:700">📉 Lỗ vốn: '+Math.abs(profit).toLocaleString()+'đ</span>'}`,okText:'Xác nhận xuất chuồng',okClass:profit<0?'danger':''});
+  const ok=await showPopup({icon:'🏷️',title:'Xác nhận xuất chuồng',msg:`Heo: <b>${esc(p.name)}</b><br>Tổng chi phí: <b>${totExp.toLocaleString()}đ</b><br>Tiền bán: <b>${amount.toLocaleString()}đ</b><br><br>${profit>=0?'<span style="color:#2e7d32;font-weight:700">💰 Lợi nhuận: '+profit.toLocaleString()+'đ</span>':'<span style="color:#d32f2f;font-weight:700">📉 Lỗ vốn: '+Math.abs(profit).toLocaleString()+'đ</span>'}`,okText:'Xác nhận xuất chuồng',okClass:profit<0?'danger':''});
   if(!ok)return;
   p.sellPrice=amount;p.sellDate=today();saveLocal();closeSellModal();
   toast(`✅ Đã xuất chuồng heo ${p.name}`,'ok');
 }
 async function deletePig(id){
   const p=pigs.find(x=>x.id===id);
-  const ok=await showPopup({icon:'🗑️',title:'Xoá heo vĩnh viễn',msg:`Xoá <b>${p?p.name:'heo này'}</b> vĩnh viễn?<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục sau khi xoá!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
+  const ok=await showPopup({icon:'🗑️',title:'Xoá heo vĩnh viễn',msg:`Xoá <b>${p?esc(p.name):'heo này'}</b> vĩnh viễn?<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục sau khi xoá!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
   if(ok){pigs=pigs.filter(x=>x.id!==id);saveLocal();toast('Đã xoá heo');}
 }
 function exportJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(pigs)],{type:'application/json'}));a.download='DuLieuHeo.json';a.click();toast('Đã xuất file JSON','ok');}
-function importJSON(e){const r=new FileReader();r.onload=ev=>{try{pigs=JSON.parse(ev.target.result);saveLocal();toast('Khôi phục thành công','ok');}catch(err){showAlert('❌','Lỗi','File <b>không hợp lệ</b> hoặc bị hỏng!');}};r.readAsText(e.target.files[0]);}
+function importJSON(e){
+  const f=e.target.files[0];e.target.value='';   // cho phép chọn lại cùng file
+  if(!f)return;
+  const r=new FileReader();
+  r.onload=async ev=>{
+    let data=null;
+    try{data=normalizePigs(JSON.parse(ev.target.result));}catch(err){}
+    if(!data){showAlert('❌','Lỗi','File <b>không phải dữ liệu Quản Lý Heo</b> hoặc bị hỏng!');return;}
+    const ok=await showPopup({icon:'📥',title:'Khôi phục từ file',msg:`File có <b>${data.length}</b> con heo.<br><br>⚠️ Sẽ <b>ghi đè</b> dữ liệu hiện tại (${pigs.length} con). Tiếp tục?`,okText:'Khôi phục',okClass:'danger'});
+    if(!ok)return;
+    pigs=data;saveLocal();toast('Khôi phục thành công','ok');
+  };
+  r.readAsText(f);
+}
 
-function today(){return new Date().toISOString().split('T')[0];}
+/* Ngày theo giờ máy (giờ Việt Nam), không dùng UTC — tránh lệch 1 ngày từ 0h–7h sáng */
+function ymd(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+function parseYMD(s){const[y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d);}
+function today(){return ymd(new Date());}
+function addDays(s,n){const d=parseYMD(s);d.setDate(d.getDate()+n);return ymd(d);}
+function daysFromToday(s){return Math.round((parseYMD(s)-parseYMD(today()))/86400000);}
+function vacDate(pig,v,isMum){
+  if(isMum&&v.dFB!==undefined)return addDays(pig.breedDate,v.dFB);
+  return addDays(pig.actualBirth||pig.dueDate,v.dFBR);
+}
+function isYMD(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+/* Kiểm tra + chuẩn hoá dữ liệu heo (file JSON, localStorage). Trả về null nếu không hợp lệ */
+function normalizePigs(arr){
+  if(!Array.isArray(arr))return null;
+  const out=[],ids=new Set();
+  for(const raw of arr){
+    if(!raw||typeof raw!=='object'||!raw.name||!isYMD(raw.breedDate))return null;
+    const p={...raw};
+    p.name=String(p.name);
+    if(!isYMD(p.dueDate))p.dueDate=addDays(p.breedDate,114);
+    if(!isYMD(p.actualBirth))p.actualBirth=null;
+    p.breedCount=parseInt(p.breedCount)||1;
+    p.doneVacs=(p.doneVacs&&typeof p.doneVacs==='object')?p.doneVacs:{};
+    p.expenses=Array.isArray(p.expenses)?p.expenses.filter(e=>e&&e.desc).map(e=>({desc:String(e.desc),amount:parseInt(e.amount)||0,date:isYMD(e.date)?e.date:p.breedDate,edited:!!e.edited})):[];
+    p.sellPrice=(p.sellPrice===null||p.sellPrice===undefined||p.sellPrice==='')?null:(parseInt(p.sellPrice)||0);
+    p.sellDate=p.sellPrice===null?null:(isYMD(p.sellDate)?p.sellDate:today());
+    out.push(p);
+  }
+  // ID trùng hoặc thiếu → cấp ID mới
+  let maxId=Math.max(0,...out.map(p=>Number.isInteger(p.id)?p.id:0));
+  out.forEach(p=>{
+    if(!Number.isInteger(p.id)||ids.has(p.id))p.id=++maxId;
+    ids.add(p.id);
+    if(!p.color)p.color=COLORS[p.id%COLORS.length];
+  });
+  return out;
+}
 function fmtDate(s){if(!s)return'';const p=s.split('-');return`${p[2]}/${p[1]}`;}
 function fmtFull(s){if(!s)return'';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
 function parseViDate(s){if(!s)return null;const p=s.split('/');if(p.length!==3)return null;return`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;}
@@ -987,10 +1035,10 @@ function render(){
     const profit=pig.sellPrice!==null?pig.sellPrice-totExp:0;
     const isSold=pig.sellPrice!==null;
     const stamp=isSold?`<div class="sold-stamp-container"><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div></div>`:'';
-    const dl=Math.ceil((new Date(pig.dueDate)-now)/86400000);
-    const cdHTML=(!isSold&&!pig.actualBirth)?`<span class="countdown">${dl>0?'còn '+dl+' ngày':'quá ngày'}</span>`:'';
+    const dl=daysFromToday(pig.dueDate);
+    const cdHTML=(!isSold&&!pig.actualBirth)?`<span class="countdown">${dl>0?'còn '+dl+' ngày':dl===0?'hôm nay':'quá '+(-dl)+' ngày'}</span>`:'';
     let bd='';
-    if(pig.actualBirth){const dd=Math.round((new Date(pig.actualBirth)-new Date(pig.dueDate))/86400000);bd=`<div style="color:${dd===0?'#2e7d32':'#d32f2f'};font-weight:700;margin-top:5px">➔ ${dd>=0?'Đẻ muộn: '+dd+' ngày':'Đẻ sớm: '+Math.abs(dd)+' ngày'}</div>`;}
+    if(pig.actualBirth){const dd=Math.round((parseYMD(pig.actualBirth)-parseYMD(pig.dueDate))/86400000);bd=`<div style="color:${dd===0?'#2e7d32':'#d32f2f'};font-weight:700;margin-top:5px">➔ ${dd>=0?'Đẻ muộn: '+dd+' ngày':'Đẻ sớm: '+Math.abs(dd)+' ngày'}</div>`;}
     const expCountTxt=exps.length>0?`${exps.length} khoản — Tổng: <b>${totExp.toLocaleString()}đ</b>`:'Chưa có khoản chi nào';
     const breedCount=pig.breedCount||1;
     const breedBadge=breedCount>1?`<span class="breed-count-badge">lần ${breedCount}</span>`:'';
@@ -1001,7 +1049,7 @@ function render(){
       ${stamp}
       <div class="pig-header" style="background:${isSold?'#999':cc}">
         <div class="pig-header-top">
-          <div class="pig-name-title">🐷 ${pig.name}</div>
+          <div class="pig-name-title">🐷 ${esc(pig.name)}</div>
           <div style="font-size:12px;opacity:.85">Ngày thêm: ${dateAddedStr}</div>
         </div>
         ${isSold?`<div class="lock-container" ondblclick="toggleLock(${pig.id})"><span class="lock-status">Đã Khoá — Nhấp đúp để mở</span></div>`:''}
@@ -1050,7 +1098,7 @@ function render(){
           </div>
           <table>
             ${exps.length>0?`<tr><th>Khoản chi</th><th style="width:56px">Ngày</th><th style="width:96px;text-align:right">Tiền</th></tr>`:''}
-            ${exps.map((e,i)=>`<tr class="${e.edited?'edited-row':''}" ${!isSold?`ondblclick="openExpModal(${pig.id},${i})"`:''}><td>${e.desc}</td><td>${fmtDate(e.date)}</td><td style="text-align:right">${e.amount.toLocaleString()}đ</td></tr>`).join('')}
+            ${exps.map((e,i)=>`<tr class="${e.edited?'edited-row':''}" ${!isSold?`ondblclick="openExpModal(${pig.id},${i})"`:''}><td>${esc(e.desc)}</td><td>${fmtDate(e.date)}</td><td style="text-align:right">${e.amount.toLocaleString()}đ</td></tr>`).join('')}
           </table>
           ${!isSold?`<button class="add-exp-btn" onclick="openExpModal(${pig.id})">+ Thêm chi phí</button>`:''}
         </div>
@@ -1074,14 +1122,13 @@ function render(){
 function renderTable(pig,vacs,isMum,now,isSold){
   let rows='';
   vacs.forEach(v=>{
-    let vd=new Date(isMum&&v.dFB!==undefined?pig.breedDate:(pig.actualBirth||pig.dueDate));
-    if(isMum&&v.dFB!==undefined)vd.setDate(vd.getDate()+v.dFB);else if(v.dFBR!==undefined)vd.setDate(vd.getDate()+v.dFBR);
-    const diff=Math.ceil((vd-now)/86400000);
+    const vd=vacDate(pig,v,isMum);
+    const diff=daysFromToday(vd);
     const done=pig.doneVacs[(isMum?'M':'B')+'_'+v.n];
     let al='';
     if(!done&&diff>=0&&diff<=3)al=diff===0?'<br><span style="color:#d93025;font-size:12px">Hôm nay!</span>':'<br><span style="color:#d93025;font-size:12px">Còn '+diff+' ngày</span>';
     const cls=done?'done':diff<0?'overdue':diff<=3?'warning-3days':'';
-    rows+=`<tr class="${cls}" ${!isSold?`ondblclick="toggleVac(${pig.id},'${isMum?'M':'B'}','${v.n}')"`:''}><td style="width:45%">${v.n}</td><td style="width:30%">${fmtDate(vd.toISOString().split('T')[0])}${al}</td><td style="width:25%;font-size:14px">${v.m}</td></tr>`;
+    rows+=`<tr class="${cls}" ${!isSold?`ondblclick="toggleVac(${pig.id},'${isMum?'M':'B'}','${v.n}')"`:''}><td style="width:45%">${v.n}</td><td style="width:30%">${fmtDate(vd)}${al}</td><td style="width:25%;font-size:14px">${v.m}</td></tr>`;
   });
   return`<table>${rows}</table>`;
 }
