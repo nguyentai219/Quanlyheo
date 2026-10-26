@@ -18,7 +18,8 @@ PWA quản lý heo nái: lịch phối, dự sinh, lịch tiêm heo mẹ / heo c
 
 | Phiên bản | Ngày | Thay đổi |
 |-----------|------|----------|
-| **v1.6.1** | 2026-10-26 | 🏷️ Đầu trang mới: logo heo xoay, tên **Quản Lý Heo Nái PRO**, số phiên bản; áp dụng quy tắc đánh số `Z.X.Y` như app Mủ Cao Su. |
+| **v1.6.2** | 2026-10-26 | 💉 Mũi tiêm quá hạn chưa tiêm: trả lại đánh dấu cho mũi trước phối, thêm chữ đỏ **"⚠️ Quá hạn N ngày"** dưới ngày tiêm. |
+| v1.6.1 | 2026-10-26 | 🏷️ Đầu trang mới: logo heo xoay, tên **Quản Lý Heo Nái PRO**, số phiên bản; áp dụng quy tắc đánh số `Z.X.Y` như app Mủ Cao Su. |
 | v1.6.0 | 2026-10-26 | 🗑️ Xoá heo chuyển vào mục **Heo đã xoá** (xem lại đầy đủ, khôi phục hoặc xoá hẳn). |
 | v1.5.0 | 2026-10-26 | 🔀 Đồng bộ nhiều máy giữ bản sửa sau cùng (gộp theo từng con); 🌖 âm lịch + icon mặt trăng; 💉 lịch tiêm tối ưu. |
 | v1.4.1 | 2026-10-26 | 🛡️ Sửa các lỗi có thể gây mất dữ liệu; sao lưu / khôi phục bằng file. |
