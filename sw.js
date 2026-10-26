@@ -1,5 +1,5 @@
 // Đổi số phiên bản mỗi lần cập nhật app → điện thoại tự nhận bản mới
-const CACHE_NAME = 'quanlyheo-v1.4.0';
+const CACHE_NAME = 'quanlyheo-v1.4.1';
 const ASSETS = [
   '/Quanlyheo/',
   '/Quanlyheo/index.html',
