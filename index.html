@@ -146,9 +146,37 @@ input{
 #sync-summary{background:#f6f8f6;border:1px solid #e0e6e0;border-radius:10px;padding:8px 11px;margin-bottom:12px;font-size:13px;line-height:1.55;}
 #sync-summary div{display:flex;gap:6px;}
 #sync-summary .ok{color:#1b5e20;}#sync-summary .busy{color:#8d6e00;}#sync-summary .bad{color:#b71c1c;}
-.sync-tabs{display:flex;gap:6px;margin-bottom:12px;background:#eef1ee;padding:4px;border-radius:11px;}
-.sync-tabs button{flex:1;padding:10px 6px;border:none;border-radius:8px;background:transparent;font-size:14px;font-weight:700;color:#666;cursor:pointer;}
-.sync-tabs button.on{background:#fff;color:var(--green);box-shadow:0 1px 4px rgba(0,0,0,.12);}
+/* Danh sách tuỳ chọn kiểu app Mủ Cao Su */
+.cn-opt{display:flex;align-items:center;gap:12px;padding:12px 12px;border-radius:11px;cursor:pointer;margin-bottom:6px;background:#fafafa;border:1px solid #eee;}
+.cn-opt:active{background:#eef3ee;}
+.cn-ico{font-size:20px;width:28px;text-align:center;flex-shrink:0;}
+.cn-txt{flex:1;font-size:14.5px;font-weight:700;color:#333;}
+.cn-sub{font-size:12px;color:#888;font-weight:400;margin-top:1px;}
+.cn-opt.hl{background:#e8f5e9;border-color:#a5d6a7;}.cn-opt.hl .cn-txt{color:#1b5e20;}
+.cn-opt.danger .cn-txt{color:#c62828;}
+.cn-acct{display:flex;align-items:center;gap:12px;padding:4px 2px 12px;border-bottom:1px solid #eee;margin-bottom:8px;}
+.cn-av{width:44px;height:44px;border-radius:50%;background:#d1fae5;color:#047857;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:800;flex-shrink:0;}
+.cn-row{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:6px 2px;border-bottom:1px dashed #eee;}
+.cn-row b{color:#333;text-align:right;}
+.cn-form input,.cn-form select{width:100%;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-size:16px;margin-bottom:9px;box-sizing:border-box;background:#fff;}
+.cn-pw{position:relative;}.cn-pw input{padding-right:44px;}
+.cn-pw span{position:absolute;right:12px;top:11px;font-size:18px;cursor:pointer;user-select:none;}
+.cn-btn{width:100%;padding:12px;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:8px;}
+.cn-btn.pri{background:linear-gradient(135deg,#3ecf8e,#249361);color:#fff;}
+.cn-btn.sec{background:#eff6ff;color:#1d4ed8;border:1.5px solid #bfdbfe;}
+.cn-btn.red{background:#fdecea;color:#c62828;border:1.5px solid #f5c2c0;}
+.cn-btn:disabled{opacity:.5;}
+.cn-link{text-align:center;font-size:14px;color:#1565c0;font-weight:700;text-decoration:underline;cursor:pointer;margin:4px 0 12px;}
+.cn-note{font-size:12px;color:#777;text-align:center;line-height:1.5;margin:6px 0 10px;}
+.cn-quota{height:10px;background:#eee;border-radius:6px;overflow:hidden;margin:6px 0 4px;}
+.cn-quota i{display:block;height:100%;background:#3ecf8e;}
+.cn-pig{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid #f0f0f0;font-size:14px;}
+.cn-pig input{width:20px;height:20px;flex-shrink:0;}
+.cn-pig .nm{flex:1;min-width:0;}
+.cn-pig .nm small{display:block;color:#888;font-size:12px;}
+.cn-card{border:1px solid #e3e3e3;border-radius:10px;padding:9px 11px;margin-bottom:7px;font-size:13.5px;line-height:1.55;background:#fff;}
+.cn-card .t{font-weight:800;font-size:15px;}
+.cn-sum{background:#f1f8e9;border:1px solid #c5e1a5;border-radius:10px;padding:9px 11px;font-size:13.5px;line-height:1.6;margin-bottom:10px;}
 /* Thanh thông báo đa nhiệm (trên cùng, xoay vòng) */
 #nbar{position:sticky;top:0;z-index:1500;margin:-10px -10px 12px;padding:calc(env(safe-area-inset-top,0px) + 7px) 12px 7px;background:var(--green);box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;gap:8px;cursor:pointer;}
 #nbar-ico{font-size:17px;line-height:1;flex-shrink:0;}
@@ -246,43 +274,14 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
   <div class="modal-sheet sync-sheet">
     <div class="modal-handle"></div>
     <div class="modal-header">
-      <span class="modal-title">🔗 Kết nối &amp; đồng bộ</span>
+      <button class="modal-close" id="sync-back" onclick="syncBack()" style="display:none">‹</button>
+      <span class="modal-title" id="sync-title" style="flex:1">🔗 Kết nối &amp; đồng bộ</span>
       <button class="modal-close" onclick="closeSyncModal()">✕</button>
     </div>
     <div class="modal-body">
       <div id="sync-summary"></div>
-      <div class="sync-tabs">
-        <button id="sync-tab-btn-sb" onclick="syncTab('sb')">⚡ Supabase</button>
-        <button id="sync-tab-btn-gd" onclick="syncTab('gd')">☁️ Google Drive</button>
-      </div>
-      <div id="sync-tab-sb">
-  <div class="sb-panel">
-    <div class="sb-topbar">⚡ Supabase — Đồng bộ nhiều máy</div>
-    <div style="padding:14px 15px">
-      <div id="sb-loggedout">
-        <input type="email" id="sb-email" placeholder="Email" autocomplete="username">
-        <input type="password" id="sb-pass" placeholder="Mật khẩu (ít nhất 6 ký tự)" autocomplete="current-password" onkeydown="if(event.key==='Enter')sbSignIn()">
-        <div class="sb-row">
-          <button id="sb-btn-in" style="background:#3ecf8e;color:#fff" onclick="sbSignIn()">🔐 Đăng nhập</button>
-          <button id="sb-btn-up" style="background:#f1f3f4;color:#333;border:1px solid #ddd" onclick="sbSignUp()">✍️ Tạo tài khoản</button>
-        </div>
-        <div style="font-size:12px;color:#666;text-align:center;margin-top:8px;line-height:1.5">Đăng nhập cùng 1 tài khoản trên nhiều điện thoại → dữ liệu heo tự đồng bộ giữa các máy</div>
-      </div>
-      <div id="sb-loggedin" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;">
-          <div id="sb-user-email" style="font-size:13px;font-weight:700;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;"></div>
-          <button onclick="sbSignOut()" style="flex-shrink:0;padding:6px 11px;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;font-size:12px;font-weight:700;color:#555;cursor:pointer;">🚪 Đăng xuất</button>
-        </div>
-        <div class="sb-row">
-          <button id="sb-btn-push" style="background:#34a853;color:#fff" onclick="sbPush(true)">☁️ Đẩy lên</button>
-          <button id="sb-btn-pull" style="background:#fbbc05;color:#333" onclick="sbPullManual()">📥 Tải về</button>
-        </div>
-      </div>
-      <div id="sb-status" class="sb-status"></div>
-    </div>
-  </div>
-      </div>
-      <div id="sync-tab-gd" style="display:none">
+      <div id="sync-view"></div>
+      <div id="sync-gd" style="display:none">
   <div class="gdrive-panel">
     <div class="gdrive-topbar">
       <svg width="18" height="18" viewBox="0 0 87.3 78" fill="white"><path d="M6.6 66.85l3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8H0c0 1.55.4 3.1 1.2 4.5z"/><path d="M43.65 25L29.9 1.2C28.55 2 27.4 3.1 26.6 4.5L1.2 48.35c-.8 1.4-1.2 2.95-1.2 4.5h27.5z"/><path d="M73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.2c.8-1.4 1.2-2.95 1.2-4.5H60.1l5.85 11.2z"/><path d="M43.65 25L57.4 1.2C56.05.45 54.5 0 52.85 0H34.45c-1.65 0-3.2.45-4.55 1.2z"/><path d="M60.1 52.85H27.5L13.75 76.65c1.35.8 2.9 1.2 4.55 1.2h50.7c1.65 0 3.2-.45 4.55-1.2z"/></svg>
@@ -324,6 +323,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
 
     </div>
   </div>
+        <div id="gd-opts" style="margin-top:10px"></div>
       </div>
     </div>
   </div>
@@ -613,8 +613,9 @@ function addReloginBtn(){
 }
 
 /* ══ GOOGLE AUTH ══ */
+let _gdManualLogin=false;
 function gdSignIn(){
-  _silentRefresh=false;
+  _silentRefresh=false;_gdManualLogin=true;
   gdTokenClient.requestAccessToken({prompt:'select_account'});
 }
 
@@ -659,8 +660,10 @@ async function onGDToken(resp){
     saveMeta();
     renderLoggedIn();
     scheduleTokenRefresh();
+    if(_gdManualLogin){_gdManualLogin=false;setProvider('gdrive');}
     setSyncDot('online','Đã kết nối');
     toast('✅ Đã kết nối Google Drive!','ok');
+    if(_cnView==='gd')cnShow('gd',{root:!_cnStack.length});
     if(_pendingAction==='backup'){_pendingAction=null;setTimeout(gdBackup,500);}
     else if(_pendingAction==='restore'){_pendingAction=null;setTimeout(gdRestore,500);}
     else{setTimeout(()=>autoSync(),1500);}
@@ -848,19 +851,18 @@ let _sbBar='',_sbBarMsg='',_sbLoadTries=0,sbClient=null,sbUser=null,_sbTimer=nul
 function sbMeta(){try{return JSON.parse(localStorage.getItem(SB_META_KEY))||{};}catch(e){return{};}}
 function sbSetMeta(m){localStorage.setItem(SB_META_KEY,JSON.stringify({...sbMeta(),...m}));}
 function sbStatus(t){
-  const el=document.getElementById('sb-status');if(el)el.textContent=t||'';
   t=t||'';
   _sbBar=/^✅|^📥/.test(t)?'ok':/^⚠️/.test(t)?'error':/^Đang/.test(t)?'busy':'';
   _sbBarMsg=t.replace(/^⚠️\s*/,'');
   if(_sbBar==='ok')sbSetMeta({lastAt:Date.now()});
   nbarRender('sb');
+  if(_cnView==='sb-main'&&sbUser)cnRefreshRows();
 }
 function sbBtns(d){['sb-btn-in','sb-btn-up','sb-btn-push','sb-btn-pull'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=d;});}
 function sbRenderUI(){
   nbarRender('sb');
-  document.getElementById('sb-loggedout').style.display=sbUser?'none':'block';
-  document.getElementById('sb-loggedin').style.display=sbUser?'block':'none';
-  if(sbUser)document.getElementById('sb-user-email').textContent='👤 '+sbUser.email;
+  // Đang mở trang Supabase → vẽ lại theo trạng thái đăng nhập mới
+  if(_cnView==='sb-main'&&document.getElementById('syncModal').classList.contains('show'))cnShow('sb-main');
 }
 function sbErrMsg(e){
   const m=(e&&(e.message||e.error_description))||String(e);
@@ -869,6 +871,10 @@ function sbErrMsg(e){
   if(/already registered/i.test(m))return'Email này đã có tài khoản — hãy đăng nhập';
   if(/relation .* does not exist|Could not find the table/i.test(m))return'Chưa tạo bảng '+SB_TABLE+' trên Supabase';
   if(/Failed to fetch|NetworkError/i.test(m))return'Không có mạng';
+  if(/rate limit|too many/i.test(m))return'Gửi quá nhiều lần — vui lòng thử lại sau ít phút';
+  if(/should be different/i.test(m))return'Mật khẩu mới phải khác mật khẩu cũ';
+  if(/at least 6|Password should be/i.test(m))return'Mật khẩu phải từ 6 ký tự';
+  if(/Auth session missing/i.test(m))return'Phiên đăng nhập đã hết — hãy đăng nhập lại';
   return m;
 }
 
@@ -889,6 +895,8 @@ function initSupabase(){
   sbClient.auth.onAuthStateChange((ev,session)=>{
     sbUser=session?session.user:null;
     sbRenderUI();
+    // Mở app từ link "Quên mật khẩu" trong email → cho đặt mật khẩu mới ngay
+    if(ev==='PASSWORD_RECOVERY')setTimeout(()=>{openSyncModal();cnShow('sb-newpass',{recovery:true});},300);
   });
   // Mở lại app / có mạng lại → kiểm tra bản mới từ máy khác
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&sbUser)sbSync();});
@@ -901,10 +909,11 @@ async function sbSignIn(){
   const email=document.getElementById('sb-email').value.trim(),password=document.getElementById('sb-pass').value;
   if(!email||!password)return showAlert('⚠️','Thiếu thông tin','Nhập <b>email</b> và <b>mật khẩu</b>!');
   sbBtns(true);sbStatus('Đang đăng nhập…');
+  localStorage.setItem('QUANLYHEO_SB_LAST_EMAIL',email);
   const{data,error}=await sbClient.auth.signInWithPassword({email,password});
   sbBtns(false);
   if(error){sbStatus('');return showAlert('❌','Đăng nhập thất bại',esc(sbErrMsg(error)));}
-  sbUser=data.user;sbRenderUI();document.getElementById('sb-pass').value='';
+  sbUser=data.user;setProvider('supabase');sbRenderUI();
   toast('✅ Đã đăng nhập Supabase','ok');
   sbSync(true);
 }
@@ -917,7 +926,7 @@ async function sbSignUp(){
   sbBtns(false);sbStatus('');
   if(error)return showAlert('❌','Tạo tài khoản thất bại',esc(sbErrMsg(error)));
   if(!data.session)return showAlert('📧','Kiểm tra email','Đã gửi thư xác nhận tới <b>'+esc(email)+'</b>.<br>Bấm link trong thư rồi quay lại đây <b>Đăng nhập</b>.');
-  sbUser=data.user;sbRenderUI();document.getElementById('sb-pass').value='';
+  sbUser=data.user;setProvider('supabase');sbRenderUI();
   toast('✅ Đã tạo tài khoản','ok');
   sbSync(true);
 }
@@ -926,21 +935,21 @@ async function sbSignOut(){
   if(!ok)return;
   clearTimeout(_sbTimer);
   await sbClient.auth.signOut();
-  sbUser=null;localStorage.removeItem(SB_META_KEY);sbRenderUI();sbStatus('');
+  sbUser=null;localStorage.removeItem(SB_META_KEY);sbStatus('');sbRenderUI();
   toast('Đã đăng xuất Supabase');
 }
 
 /* Máy có thay đổi → đánh dấu, đẩy lên sau 1.5s */
 function sbMarkDirty(){
   sbSetMeta({dirty:true});
-  if(!sbUser)return;
+  if(!sbUser||getProvider()!=='supabase')return;
   clearTimeout(_sbTimer);
   _sbTimer=setTimeout(()=>sbSync(),1500);
 }
 
 /* Đồng bộ 2 chiều: tải bản mới từ máy khác, đẩy thay đổi của máy này; 2 bên cùng sửa → hỏi người dùng */
 async function sbSync(firstLogin){
-  if(!sbClient||!sbUser||!navigator.onLine)return;
+  if(!sbClient||!sbUser||!navigator.onLine||getProvider()!=='supabase')return;
   if(_sbBusy){_sbAgain=true;return;}
   _sbBusy=true;
   try{
@@ -973,6 +982,7 @@ async function sbUpload(){
   if(error)throw error;
   // Trong lúc đang gửi mà người dùng sửa tiếp → vẫn giữ dirty để lần sau đẩy tiếp
   sbSetMeta({rev:data.updated_at,dirty:JSON.stringify(pigs)!==sent});
+  _cnRow={pigs:JSON.parse(sent),updated_at:data.updated_at};_cnRowAt=Date.now();
   sbStatus('✅ Đã đồng bộ lúc '+new Date().toLocaleTimeString('vi-VN'));
 }
 function sbApply(row){
@@ -980,6 +990,7 @@ function sbApply(row){
   if(!data){sbStatus('⚠️ Dữ liệu trên Supabase không hợp lệ — bỏ qua');return;}
   pigs=data;saveLocal(true);
   sbSetMeta({rev:row.updated_at,dirty:false});
+  _cnRow=row;_cnRowAt=Date.now();
   sbStatus('📥 Đã nhận dữ liệu mới lúc '+new Date().toLocaleTimeString('vi-VN'));
 }
 async function sbAskConflict(row,why){
@@ -1023,24 +1034,26 @@ function fmtSyncTime(ms){
 function nbarSlides(){
   const out=[],online=navigator.onLine;
   if(!online)out.push({k:'net',ico:'📴',cls:'bad',t:'Không có mạng — dữ liệu vẫn lưu trên máy, sẽ tự đồng bộ khi có mạng lại'});
-  if(sbUser){
+  const prov=getProvider();
+  if(prov==='supabase'&&sbUser){
     const m=sbMeta(),em=sbUser.email,last=fmtSyncTime(m.lastAt),pend=m.dirty?' · có thay đổi chờ đồng bộ':'';
     if(!online)out.push({k:'sb',ico:'⚡',cls:'bad',t:`Mất kết nối Supabase ${em}${last?' — đồng bộ gần nhất '+last:''}${pend}`});
     else if(_sbBar==='busy')out.push({k:'sb',ico:'⚡',cls:'busy',t:`${_sbBarMsg} Supabase ${em}`});
     else if(_sbBar==='error')out.push({k:'sb',ico:'⚡',cls:'bad',t:`Lỗi đồng bộ Supabase ${em}: ${_sbBarMsg}`});
     else out.push({k:'sb',ico:'⚡',cls:'ok',t:`Supabase ${em} đã kết nối — đồng bộ ${last?'lúc '+last:'…'}${pend}`});
   }
-  if(gdUser){
+  if(prov==='gdrive'&&gdUser){
     const em=gdUser.email||'Google',last=fmtSyncTime(gdLastSync),st=_gdBar.status;
     if(st==='busy')out.push({k:'gd',ico:'☁️',cls:'busy',t:`${_gdBar.text} Google Drive ${em}`});
     else if(st==='offline'||!gdToken)out.push({k:'gd',ico:'☁️',cls:'bad',t:`Mất kết nối Google Drive ${em} (${_gdBar.text})${last?' — đồng bộ gần nhất '+last:''}`});
     else out.push({k:'gd',ico:'☁️',cls:'ok',t:`Google Drive ${em} đã kết nối — đồng bộ ${last?'lúc '+last:'…'}`});
   }
-  if(!sbUser&&!gdUser){
+  if(prov==='supabase'&&!sbUser){
     const checking=online&&!sbClient&&_sbLoadTries<=30;
     out.push(checking?{k:'sb',ico:'⏳',cls:'busy',t:'Đang kiểm tra kết nối…'}
-      :{k:'sb',ico:'⚠️',cls:'bad',t:'Chưa kết nối đồng bộ — dữ liệu chỉ lưu trên máy này. Nhấp đúp vào đây để đăng nhập Supabase / Google Drive'});
+      :{k:'sb',ico:'⚠️',cls:'bad',t:'Chưa đăng nhập Supabase — dữ liệu chỉ lưu trên máy này. Nhấp đúp vào đây để đăng nhập'});
   }
+  if(prov==='gdrive'&&!gdUser)out.push({k:'gd',ico:'⚠️',cls:'bad',t:'Chưa đăng nhập Google Drive — dữ liệu chỉ lưu trên máy này. Nhấp đúp vào đây để đăng nhập'});
   return out;
 }
 function nbarShow(slides){
@@ -1075,7 +1088,7 @@ function nbarRender(key){
 /* Cập nhật bảng trạng thái trong trang kết nối (nếu đang mở) */
 function syncSummaryRender(){
   const el=document.getElementById('sync-summary');if(!el)return;
-  el.innerHTML=nbarSlides().map(s=>`<div class="${s.cls}"><span>${s.ico}</span><span>${esc(s.t.replace(/ Nhấp đúp vào đây để đăng nhập.*$/,' Chọn Supabase hoặc Google Drive bên dưới để đăng nhập.'))}</span></div>`).join('');
+  el.innerHTML=nbarSlides().map(s=>`<div class="${s.cls}"><span>${s.ico}</span><span>${esc(s.t.replace(/ Nhấp đúp vào đây để đăng nhập.*$/,''))}</span></div>`).join('');
 }
 let _nbarTapT=null;
 function nbarTap(){
@@ -1083,19 +1096,293 @@ function nbarTap(){
   _nbarTapT=setTimeout(()=>toast('Nhấp đúp vào thanh thông báo để mở trang kết nối & đồng bộ'),400);
 }
 function nbarDblTap(){clearTimeout(_nbarTapT);openSyncModal();}
-function syncTab(t){
-  ['sb','gd'].forEach(k=>{
-    document.getElementById('sync-tab-'+k).style.display=k===t?'block':'none';
-    document.getElementById('sync-tab-btn-'+k).classList.toggle('on',k===t);
-  });
+/* ══ PHƯƠNG ÁN ĐỒNG BỘ: Supabase hoặc Google Drive (chỉ 1 phương án tự đồng bộ) ══ */
+const SYNC_PROVIDER_KEY='QUANLYHEO_SYNC_PROVIDER';
+function getProvider(){
+  let p=null;try{p=localStorage.getItem(SYNC_PROVIDER_KEY);}catch(e){}
+  if(p==='supabase'||p==='gdrive')return p;
+  // Máy cũ chưa chọn: chỉ từng đăng nhập Google (không có phiên Supabase) → Google Drive
+  let gd=null,sb=null;try{gd=JSON.parse(localStorage.getItem(GD_META_KEY)||'{}').user;sb=localStorage.getItem('quanlyheo-sb-auth-v2');}catch(e){}
+  return gd&&!sb?'gdrive':'supabase';
 }
+function setProvider(p){try{localStorage.setItem(SYNC_PROVIDER_KEY,p);}catch(e){}nbarRender(p==='gdrive'?'gd':'sb');}
+function chooseProvider(p){
+  setProvider(p);
+  toast(p==='gdrive'?'☁️ Đã chuyển sang Google Drive':'⚡ Đã chuyển sang Supabase','ok');
+  if(p==='supabase'&&sbUser)sbSync();
+  if(p==='gdrive'&&gdToken&&_syncPending)autoSync();
+  cnShow(p==='gdrive'?'gd':'sb-main',{root:true});
+}
+
+/* ══ TRANG KẾT NỐI & ĐỒNG BỘ ══ */
+let _cnView=null,_cnStack=[],_cnRow=null,_cnRowAt=0;
 function openSyncModal(){
-  // Mở thẻ của phương án đang dùng (Google Drive nếu chỉ đăng nhập Google, còn lại Supabase)
-  syncTab(gdUser&&!sbUser?'gd':'sb');
+  _cnStack=[];
   syncSummaryRender();
+  cnShow(getProvider()==='gdrive'?'gd':'sb-main',{root:true});
   document.getElementById('syncModal').classList.add('show');
 }
-function closeSyncModal(){document.getElementById('syncModal').classList.remove('show');}
+function closeSyncModal(){document.getElementById('syncModal').classList.remove('show');_cnView=null;}
+function syncBack(){const v=_cnStack.pop();if(v)cnShow(v,{back:true});}
+function cnOpt(ico,txt,sub,onclick,cls){
+  return `<div class="cn-opt ${cls||''}" onclick="${onclick}"><span class="cn-ico">${ico}</span><div class="cn-txt">${txt}${sub?`<div class="cn-sub">${sub}</div>`:''}</div></div>`;
+}
+const CN_TITLES={'sb-main':'⚡ Supabase','gd':'☁️ Google Drive','picker':'🔀 Phương án đồng bộ','sb-data':'📊 Dữ liệu trên Supabase','sb-store':'📁 Thư mục lưu trữ Supabase','sb-newpass':'🔑 Đổi mật khẩu','sb-forgot':'❓ Quên mật khẩu'};
+function cnShow(view,o){
+  o=o||{};
+  if(!o.root&&!o.back&&_cnView&&_cnView!==view)_cnStack.push(_cnView);
+  if(o.root)_cnStack=[];
+  _cnView=view;
+  document.getElementById('sync-title').textContent=view==='sb-newpass'&&o.recovery?'🔑 Đặt mật khẩu mới':CN_TITLES[view]||'🔗 Kết nối & đồng bộ';
+  document.getElementById('sync-back').style.display=_cnStack.length?'block':'none';
+  const gd=document.getElementById('sync-gd'),box=document.getElementById('sync-view');
+  gd.style.display=view==='gd'?'block':'none';
+  box.innerHTML='';
+  if(view==='gd'){
+    document.getElementById('gd-opts').innerHTML=
+      (gdUser?cnOpt('👤','Đổi tài khoản Google','Đăng nhập bằng tài khoản Google khác',"gdSwitchAccount()"):'')+
+      cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Google Drive',"cnShow('picker')");
+    return;
+  }
+  box.innerHTML=cnRender(view,o);
+  if(view==='sb-main'&&sbUser)cnRefreshRows(true);
+  if(view==='sb-data'||view==='sb-store')cnLoadRow(view);
+  if(view==='sb-forgot'||view==='sb-main'&&!sbUser){const e=document.getElementById('sb-email');if(e&&!e.value)e.value=localStorage.getItem('QUANLYHEO_SB_LAST_EMAIL')||'';}
+}
+function cnPwField(id,ph,ac,enter){
+  return `<div class="cn-pw"><input type="password" id="${id}" placeholder="${ph}" autocomplete="${ac}" ${enter?`onkeydown="if(event.key==='Enter')${enter}"`:''}><span onclick="cnEye('${id}',this)">👁️</span></div>`;
+}
+function cnEye(id,el){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';el.textContent=i.type==='password'?'👁️':'🙈';}
+function cnRender(view,o){
+  const prov=getProvider();
+  if(view==='picker')return `<div class="cn-note" style="font-size:13px">Chọn 1 phương án để tự động sao lưu &amp; đồng bộ dữ liệu heo. Có thể đổi lại bất cứ lúc nào — dữ liệu trên máy không bị mất.</div>`
+    +cnOpt('⚡','Supabase'+(prov==='supabase'?' ✓':''),'Đồng bộ nhiều điện thoại cùng 1 tài khoản, đăng nhập 1 lần, ổn định',"chooseProvider('supabase')",prov==='supabase'?'hl':'')
+    +cnOpt('☁️','Google Drive'+(prov==='gdrive'?' ✓':''),'Lưu thành file Google Sheets, dễ xem trên máy tính',"chooseProvider('gdrive')",prov==='gdrive'?'hl':'');
+  if(view==='sb-main'&&!sbClient)return `<div class="cn-note">⏳ Đang tải Supabase… (cần có mạng)</div>`+cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')");
+  if(view==='sb-main'&&!sbUser)return `<div style="text-align:center;padding:2px 0 12px"><div style="font-size:40px">⚡</div><div style="font-weight:800;font-size:16px">Đăng nhập / Đăng ký</div><div class="cn-note" style="margin:2px 0 0">Dùng chung 1 tài khoản trên nhiều điện thoại — dữ liệu heo tự đồng bộ giữa các máy</div></div>
+    <div class="cn-form">
+      <input type="email" id="sb-email" placeholder="Email" autocomplete="username">
+      ${cnPwField('sb-pass','Mật khẩu (ít nhất 6 ký tự)','current-password','sbSignIn()')}
+      <button class="cn-btn pri" id="sb-btn-in" onclick="sbSignIn()">🔐 Đăng nhập</button>
+      <button class="cn-btn sec" id="sb-btn-up" onclick="sbSignUp()">✍️ Đăng ký tài khoản mới</button>
+    </div>
+    <div class="cn-link" onclick="cnShow('sb-forgot')">Quên mật khẩu?</div>`
+    +cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')");
+  if(view==='sb-main'){
+    const em=esc(sbUser.email||'');
+    return `<div class="cn-acct"><div class="cn-av">${em.charAt(0).toUpperCase()}</div><div style="min-width:0"><div style="font-weight:800">Tài khoản Supabase</div><div style="font-size:12.5px;color:#666;overflow:hidden;text-overflow:ellipsis">${em}</div></div></div>
+      <div id="cn-rows"></div>
+      <div style="height:8px"></div>`
+      +cnOpt('⬆️','Đồng bộ ngay','Đẩy toàn bộ dữ liệu trên máy này lên Supabase',"sbPush(true)",'hl')
+      +cnOpt('⬇️','Khôi phục từ Supabase','Tải dữ liệu trên Supabase về, ghi đè dữ liệu máy này',"sbPullManual()")
+      +cnOpt('📊','Xem dữ liệu &amp; tải PDF','Lọc theo tình trạng, tháng phối, tên heo — xuất báo cáo PDF',"cnShow('sb-data')")
+      +cnOpt('📁','Thư mục lưu trữ Supabase','Xem dung lượng từng con, xoá bớt khi cần',"cnShow('sb-store')")
+      +cnOpt('🔑','Đổi mật khẩu','Đặt mật khẩu đăng nhập mới',"cnShow('sb-newpass')")
+      +cnOpt('👤','Đổi tài khoản','Đăng xuất để đăng nhập tài khoản Supabase khác',"sbSwitchAccount()")
+      +cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')")
+      +cnOpt('🚪','Đăng xuất','Dữ liệu trên máy này vẫn giữ nguyên',"sbSignOut()",'danger');
+  }
+  if(view==='sb-forgot')return `<div class="cn-note" style="font-size:13px">Nhập email đã đăng ký. App sẽ gửi thư có link đặt lại mật khẩu — bấm link trong thư (mở bằng điện thoại này), app sẽ tự mở và cho đặt mật khẩu mới.</div>
+    <div class="cn-form"><input type="email" id="sb-email" placeholder="Email" autocomplete="username" onkeydown="if(event.key==='Enter')sbForgot()">
+    <button class="cn-btn pri" id="sb-btn-forgot" onclick="sbForgot()">📧 Gửi email đặt lại mật khẩu</button></div>
+    <div class="cn-note">Không thấy thư? Xem cả mục Thư rác / Quảng cáo. Mỗi giờ chỉ gửi được vài thư.</div>`;
+  if(view==='sb-newpass')return `<div class="cn-note" style="font-size:13px">${o.recovery?'Bạn mở app từ link đặt lại mật khẩu. ':''}Nhập mật khẩu mới (ít nhất 6 ký tự) cho tài khoản <b>${esc(sbUser?sbUser.email:'')}</b>.</div>
+    <div class="cn-form">${cnPwField('sb-np1','Mật khẩu mới','new-password','')}${cnPwField('sb-np2','Nhập lại mật khẩu mới','new-password','sbSetNewPassword()')}
+    <button class="cn-btn pri" id="sb-btn-np" onclick="sbSetNewPassword()">💾 Lưu mật khẩu mới</button></div>`;
+  if(view==='sb-data')return `<div class="cn-form" style="display:flex;gap:6px;flex-wrap:wrap">
+      <select id="cn-f" onchange="cnFilterUI();cnDataRender()" style="flex:1 1 100%">
+        <option value="all">📋 Tất cả heo</option><option value="active">🐷 Đang nuôi</option><option value="soon">🍼 Sắp đẻ (trong 7 ngày)</option>
+        <option value="sold">🏷️ Đã xuất chuồng</option><option value="month">🗓️ Theo tháng phối</option><option value="name">🔎 Tìm theo tên / số tai</option></select>
+      <input type="month" id="cn-fm" style="display:none" onchange="cnDataRender()">
+      <input type="text" id="cn-fn" placeholder="Nhập tên hoặc số tai" style="display:none" oninput="cnDataRender()">
+    </div>
+    <div id="cn-data"><div class="cn-note">⏳ Đang tải dữ liệu từ Supabase…</div></div>
+    <button class="cn-btn pri" onclick="cnExportPdf()">📄 Tải báo cáo PDF (theo bộ lọc)</button>`;
+  if(view==='sb-store')return `<div id="cn-store"><div class="cn-note">⏳ Đang tải…</div></div>`;
+  return '';
+}
+/* Dòng trạng thái tài khoản Supabase (lần đồng bộ cuối, trạng thái, dữ liệu trên máy chủ) */
+async function cnRefreshRows(fetchRow){
+  const el=document.getElementById('cn-rows');if(!el||!sbUser)return;
+  const m=sbMeta(),last=m.lastAt?new Date(m.lastAt).toLocaleString('vi-VN'):'Chưa đồng bộ';
+  const st=!navigator.onLine?'📴 Không có mạng':_sbBar==='busy'?'🔄 '+esc(_sbBarMsg):_sbBar==='error'?'❌ '+esc(_sbBarMsg):'Đã kết nối ✅';
+  const r=_cnRow;
+  el.innerHTML=`<div class="cn-row"><span>🕐 Lần đồng bộ cuối</span><b>${last}</b></div>
+    <div class="cn-row"><span>🗄️ Trạng thái</span><b>${st}${m.dirty?' · có thay đổi chờ đồng bộ':''}</b></div>
+    <div class="cn-row"><span>☁️ Trên Supabase</span><b>${r===null?'…':r===false?'Chưa có dữ liệu':`${(r.pigs||[]).length} con · ${fmtSize(cnSize(r.pigs))} · lúc ${new Date(r.updated_at).toLocaleString('vi-VN')}`}</b></div>
+    <div class="cn-row"><span>📱 Trên máy này</span><b>${pigs.length} con · ${fmtSize(cnSize(pigs))}</b></div>`;
+  if(fetchRow&&Date.now()-_cnRowAt>5000){await cnFetchRow();if(_cnView==='sb-main')cnRefreshRows();}
+}
+function cnSize(x){return new Blob([JSON.stringify(x||[])]).size;}
+function fmtSize(b){return b<1024?b+' B':b<1048576?(b/1024).toFixed(1)+' KB':(b/1048576).toFixed(2)+' MB';}
+async function cnFetchRow(){
+  try{
+    const{data,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
+    if(error)throw error;
+    _cnRow=data||false;_cnRowAt=Date.now();
+  }catch(e){toast('Lỗi tải dữ liệu Supabase: '+sbErrMsg(e),'err');}
+  return _cnRow;
+}
+async function cnLoadRow(view){
+  const r=await cnFetchRow();
+  if(_cnView!==view)return;
+  if(view==='sb-data')cnDataRender();else cnStoreRender();
+  if(!r&&r!==false)return;
+}
+/* ── Xem dữ liệu + lọc ── */
+function cnFilterUI(){
+  const f=document.getElementById('cn-f').value;
+  document.getElementById('cn-fm').style.display=f==='month'?'block':'none';
+  document.getElementById('cn-fn').style.display=f==='name'?'block':'none';
+  if(f==='month'&&!document.getElementById('cn-fm').value)document.getElementById('cn-fm').value=today().slice(0,7);
+}
+function cnFiltered(){
+  const list=normalizePigs((_cnRow&&_cnRow.pigs)||[])||[];
+  const f=(document.getElementById('cn-f')||{}).value||'all';
+  const mo=(document.getElementById('cn-fm')||{}).value||'',q=((document.getElementById('cn-fn')||{}).value||'').trim().toLowerCase();
+  return list.filter(p=>{
+    if(f==='active')return p.sellPrice===null;
+    if(f==='sold')return p.sellPrice!==null;
+    if(f==='soon'){const d=daysFromToday(p.dueDate);return p.sellPrice===null&&!p.actualBirth&&d>=0&&d<=7;}
+    if(f==='month')return!mo||p.breedDate.slice(0,7)===mo;
+    if(f==='name')return!q||p.name.toLowerCase().includes(q);
+    return true;
+  }).sort((a,b)=>a.dueDate.localeCompare(b.dueDate));
+}
+function cnFilterLabel(){
+  const sel=document.getElementById('cn-f');if(!sel)return'';
+  let t=sel.options[sel.selectedIndex].text.replace(/^\S+\s/,'');
+  if(sel.value==='month')t+=' '+(document.getElementById('cn-fm').value||'');
+  if(sel.value==='name')t+=': '+(document.getElementById('cn-fn').value||'');
+  return t;
+}
+function pigTotals(list){
+  const exp=list.reduce((s,p)=>s+p.expenses.reduce((x,e)=>x+e.amount,0),0);
+  const sold=list.filter(p=>p.sellPrice!==null);
+  const rev=sold.reduce((s,p)=>s+p.sellPrice,0),soldExp=sold.reduce((s,p)=>s+p.expenses.reduce((x,e)=>x+e.amount,0),0);
+  return{exp,rev,profit:rev-soldExp,sold:sold.length};
+}
+function cnDataRender(){
+  const el=document.getElementById('cn-data');if(!el)return;
+  if(_cnRow===false){el.innerHTML='<div class="cn-note">Tài khoản chưa có dữ liệu trên Supabase.</div>';return;}
+  if(!_cnRow){el.innerHTML='<div class="cn-note">Không tải được dữ liệu.</div>';return;}
+  const list=cnFiltered(),t=pigTotals(list);
+  el.innerHTML=`<div class="cn-sum">🐷 <b>${list.length}</b> con (đã xuất: ${t.sold}) · Tổng chi: <b>${t.exp.toLocaleString()}đ</b><br>Doanh thu xuất chuồng: <b>${t.rev.toLocaleString()}đ</b> · Lợi nhuận: <b style="color:${t.profit>=0?'#2e7d32':'#c62828'}">${t.profit.toLocaleString()}đ</b><div style="font-size:11.5px;color:#777">Bản trên Supabase lúc ${new Date(_cnRow.updated_at).toLocaleString('vi-VN')}</div></div>`
+    +(list.length?list.map(p=>{
+      const exp=p.expenses.reduce((s,e)=>s+e.amount,0),st=p.sellPrice!==null?`🏷️ Đã xuất ${fmtFull(p.sellDate)} · bán ${p.sellPrice.toLocaleString()}đ`:p.actualBirth?`🐣 Đã sinh ${fmtFull(p.actualBirth)}`:`⏳ Dự sinh ${fmtFull(p.dueDate)} (${daysFromToday(p.dueDate)>=0?'còn '+daysFromToday(p.dueDate)+' ngày':'quá '+(-daysFromToday(p.dueDate))+' ngày'})`;
+      return `<div class="cn-card"><div class="t">🐷 ${esc(p.name)}</div>Phối ${fmtFull(p.breedDate)} (lần ${p.breedCount}) · ${st}<br>Chi phí: <b>${exp.toLocaleString()}đ</b> (${p.expenses.length} khoản)</div>`;
+    }).join(''):'<div class="cn-note">Không có heo nào khớp bộ lọc.</div>');
+}
+/* ── Xuất PDF (jsPDF, chữ không dấu như app Mủ Cao Su) ── */
+function noDau(s){return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D');}
+function ensureJsPDF(cb){
+  if(window.jspdf&&window.jspdf.jsPDF&&window.jspdf.jsPDF.API.autoTable)return cb();
+  const load=(src,next)=>{const sc=document.createElement('script');sc.src=src;sc.onload=next;sc.onerror=()=>toast('❌ Không tải được thư viện PDF, kiểm tra mạng','err');document.head.appendChild(sc);};
+  load('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js',()=>load('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js',cb));
+}
+function cnExportPdf(){
+  if(!_cnRow){toast('Chưa có dữ liệu để xuất','err');return;}
+  const list=cnFiltered(),t=pigTotals(list),label=cnFilterLabel();
+  toast('⏳ Đang tạo PDF…');
+  ensureJsPDF(()=>{
+    try{
+      const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'pt',format:'a4'}),W=doc.internal.pageSize.getWidth();
+      doc.setFontSize(16);doc.text('BAO CAO QUAN LY HEO',W/2,40,{align:'center'});
+      doc.setFontSize(10);doc.text(noDau(`Tai khoan: ${sbUser.email} - Loc: ${label} - Xuat luc: ${new Date().toLocaleString('vi-VN')}`),W/2,58,{align:'center'});
+      doc.autoTable({startY:72,head:[['STT','Ten / So tai','Ngay phoi','Lan','Du sinh','Sinh thuc te','Tong chi','Ngay xuat','Gia ban','Loi nhuan']],
+        body:list.length?list.map((p,i)=>{const e=p.expenses.reduce((s,x)=>s+x.amount,0);return[i+1,noDau(p.name),fmtFull(p.breedDate),p.breedCount,fmtFull(p.dueDate),p.actualBirth?fmtFull(p.actualBirth):'-',e.toLocaleString('vi-VN'),p.sellDate?fmtFull(p.sellDate):'-',p.sellPrice!==null?p.sellPrice.toLocaleString('vi-VN'):'-',p.sellPrice!==null?(p.sellPrice-e).toLocaleString('vi-VN'):'-'];}):[['-','Khong co du lieu','','','','','','','','']],
+        styles:{fontSize:8.5,cellPadding:4},headStyles:{fillColor:[46,125,50],textColor:255},margin:{left:36,right:36}});
+      const exps=[];list.forEach(p=>p.expenses.forEach(e=>exps.push([noDau(p.name),fmtFull(e.date),noDau(e.desc),e.amount.toLocaleString('vi-VN')])));
+      if(exps.length){doc.setFontSize(12);doc.text('CHI TIET CAC KHOAN CHI',36,doc.lastAutoTable.finalY+26);
+        doc.autoTable({startY:doc.lastAutoTable.finalY+34,head:[['Heo','Ngay','Khoan chi','So tien']],body:exps,styles:{fontSize:8.5,cellPadding:4},headStyles:{fillColor:[21,101,192],textColor:255},margin:{left:36,right:36}});}
+      let y=doc.lastAutoTable.finalY+24;if(y>doc.internal.pageSize.getHeight()-40){doc.addPage();y=40;}
+      doc.setFontSize(11);doc.text(noDau(`Tong: ${list.length} con (da xuat ${t.sold}) - Tong chi: ${t.exp.toLocaleString('vi-VN')} d - Doanh thu: ${t.rev.toLocaleString('vi-VN')} d - Loi nhuan: ${t.profit.toLocaleString('vi-VN')} d`),36,y);
+      doc.save(`BaoCaoHeo_${today()}.pdf`);
+      toast('✅ Đã tải file PDF','ok');
+    }catch(e){toast('❌ Lỗi tạo PDF: '+e.message,'err');}
+  });
+}
+/* ── Thư mục lưu trữ: dung lượng, xoá bớt ── */
+const SB_QUOTA=500*1048576; // gói miễn phí: 500 MB cơ sở dữ liệu
+function cnStoreRender(){
+  const el=document.getElementById('cn-store');if(!el)return;
+  if(_cnRow===false){el.innerHTML='<div class="cn-note">Tài khoản chưa có dữ liệu trên Supabase.</div>';return;}
+  if(!_cnRow){el.innerHTML='<div class="cn-note">Không tải được dữ liệu.</div>';return;}
+  const list=normalizePigs(_cnRow.pigs||[])||[],tot=cnSize(_cnRow.pigs),pct=Math.max(.5,Math.min(100,tot/SB_QUOTA*100));
+  el.innerHTML=`<div class="cn-row"><span>💾 Dung lượng đang dùng</span><b>${fmtSize(tot)} / 500 MB</b></div>
+    <div class="cn-quota"><i style="width:${pct}%"></i></div>
+    <div class="cn-row"><span>🐷 Số heo trên Supabase</span><b>${list.length} con</b></div>
+    <div class="cn-row"><span>🕐 Cập nhật lúc</span><b>${new Date(_cnRow.updated_at).toLocaleString('vi-VN')}</b></div>
+    <div class="cn-note" style="text-align:left;margin-top:10px">Chọn heo muốn xoá — sẽ xoá <b>cả trên máy này và trên Supabase</b> (nếu chỉ xoá trên Supabase, lần đồng bộ sau máy sẽ đẩy lên lại).</div>
+    <div style="display:flex;gap:6px;margin-bottom:6px"><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('sold')">Chọn heo đã xuất</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('all')">Chọn tất cả</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('none')">Bỏ chọn</button></div>
+    <div style="max-height:40vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-bottom:10px">${list.length?[...list].sort((a,b)=>cnSize([b])-cnSize([a])).map(p=>`<label class="cn-pig"><input type="checkbox" class="cn-chk" value="${p.id}" data-sold="${p.sellPrice!==null?1:0}"><span class="nm">🐷 ${esc(p.name)}<small>${p.sellPrice!==null?'🏷️ Đã xuất '+fmtFull(p.sellDate):'Đang nuôi · dự sinh '+fmtFull(p.dueDate)} · ${p.expenses.length} khoản chi</small></span><b style="font-size:12px;color:#666">${fmtSize(cnSize([p]))}</b></label>`).join(''):'<div class="cn-note">Trống</div>'}</div>
+    <button class="cn-btn red" onclick="cnDeleteSelected()">🗑️ Xoá các heo đã chọn</button>
+    <button class="cn-btn red" onclick="cnDeleteCloud()">⚠️ Xoá toàn bộ dữ liệu trên Supabase</button>`;
+}
+function cnSelect(k){document.querySelectorAll('.cn-chk').forEach(c=>c.checked=k==='all'||k==='sold'&&c.dataset.sold==='1');}
+async function cnDeleteSelected(){
+  const ids=[...document.querySelectorAll('.cn-chk:checked')].map(c=>+c.value);
+  if(!ids.length)return showAlert('⚠️','Chưa chọn','Hãy tích chọn ít nhất 1 con heo để xoá.');
+  const names=(normalizePigs(_cnRow.pigs)||[]).filter(p=>ids.includes(p.id)).map(p=>esc(p.name));
+  const ok=await showPopup({icon:'🗑️',title:'Xoá '+ids.length+' con heo',msg:`${names.slice(0,8).join(', ')}${names.length>8?'…':''}<br><br><span style="color:#d32f2f">Xoá vĩnh viễn trên <b>máy này và Supabase</b>. Không thể khôi phục!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
+  if(!ok)return;
+  // Lấy theo bản trên Supabase (đã gồm thay đổi từ máy khác), bỏ các con đã chọn rồi ghi cả 2 nơi
+  pigs=(normalizePigs(_cnRow.pigs)||[]).filter(p=>!ids.includes(p.id));
+  saveLocal(true);
+  try{await sbUpload();toast('✅ Đã xoá '+ids.length+' con','ok');}catch(e){sbSetMeta({dirty:true});toast('Đã xoá trên máy, chưa đẩy được lên Supabase: '+sbErrMsg(e),'err');}
+  _cnRowAt=0;cnLoadRow('sb-store');
+}
+async function cnDeleteCloud(){
+  const ok=await showPopup({icon:'⚠️',title:'Xoá toàn bộ trên Supabase',msg:'Xoá <b>toàn bộ dữ liệu heo của tài khoản này trên Supabase</b>.<br><br>Dữ liệu trên <b>máy này vẫn giữ nguyên</b>. Để máy không tự đẩy lên lại, app sẽ <b>đăng xuất Supabase</b> sau khi xoá.',okText:'Xoá trên Supabase',okClass:'danger'});
+  if(!ok)return;
+  try{
+    const{error}=await sbClient.from(SB_TABLE).delete().eq('user_id',sbUser.id);
+    if(error)throw error;
+    clearTimeout(_sbTimer);await sbClient.auth.signOut();
+    sbUser=null;localStorage.removeItem(SB_META_KEY);sbStatus('');
+    toast('✅ Đã xoá dữ liệu trên Supabase và đăng xuất','ok');
+    cnShow('sb-main',{root:true});
+  }catch(e){showAlert('❌','Lỗi',esc(sbErrMsg(e)));}
+}
+/* ── Tài khoản: quên mật khẩu, đổi mật khẩu, đổi tài khoản ── */
+async function sbForgot(){
+  const email=(document.getElementById('sb-email').value||'').trim();
+  if(!/^\S+@\S+\.\S+$/.test(email))return showAlert('⚠️','Thiếu email','Nhập <b>email</b> đã đăng ký tài khoản.');
+  const b=document.getElementById('sb-btn-forgot');b.disabled=true;
+  const{error}=await sbClient.auth.resetPasswordForEmail(email,{redirectTo:location.origin+'/Quanlyheo/'});
+  b.disabled=false;
+  if(error)return showAlert('❌','Gửi thất bại',esc(sbErrMsg(error)));
+  localStorage.setItem('QUANLYHEO_SB_LAST_EMAIL',email);
+  await showAlert('📧','Đã gửi email','Đã gửi link đặt lại mật khẩu tới <b>'+esc(email)+'</b>.<br><br>Mở thư <b>trên điện thoại này</b> và bấm link — app sẽ mở và cho bạn đặt mật khẩu mới.');
+  cnShow('sb-main',{root:true});
+}
+async function sbSetNewPassword(){
+  const a=document.getElementById('sb-np1').value,b=document.getElementById('sb-np2').value;
+  if(a.length<6)return showAlert('⚠️','Mật khẩu quá ngắn','Mật khẩu mới phải <b>từ 6 ký tự</b>.');
+  if(a!==b)return showAlert('⚠️','Không khớp','Hai lần nhập mật khẩu <b>không giống nhau</b>.');
+  if(!sbUser)return showAlert('⚠️','Chưa đăng nhập','Phiên đăng nhập đã hết — hãy dùng <b>Quên mật khẩu</b> lại.');
+  const btn=document.getElementById('sb-btn-np');btn.disabled=true;
+  const{error}=await sbClient.auth.updateUser({password:a});
+  btn.disabled=false;
+  if(error)return showAlert('❌','Không đổi được mật khẩu',esc(sbErrMsg(error)));
+  toast('✅ Đã đổi mật khẩu','ok');
+  cnShow('sb-main',{root:true});
+  if(sbUser)sbSync();
+}
+async function sbSwitchAccount(){
+  const ok=await showPopup({icon:'👤',title:'Đổi tài khoản Supabase',msg:`Đăng xuất <b>${esc(sbUser.email)}</b> để đăng nhập tài khoản khác?<br><br>Dữ liệu trên máy này vẫn giữ. Khi đăng nhập tài khoản mới, nếu cả 2 bên đều có dữ liệu app sẽ hỏi bạn giữ bản nào.`,okText:'Đổi tài khoản'});
+  if(!ok)return;
+  clearTimeout(_sbTimer);await sbClient.auth.signOut();
+  sbUser=null;localStorage.removeItem(SB_META_KEY);sbStatus('');
+  cnShow('sb-main',{root:true});
+  const e=document.getElementById('sb-email');if(e){e.value='';e.focus();}
+}
+function gdSwitchAccount(){
+  // Tài khoản khác → bảng tính khác: quên email + bảng tính cũ, chọn lại tài khoản
+  gdUser={email:'',name:''};gdSpreadsheetId=null;gdLastSync=null;
+  _pendingAction=null;_silentRefresh=false;_gdManualLogin=true;
+  gdTokenClient.requestAccessToken({prompt:'select_account'});
+}
 window.addEventListener('online',()=>nbarRender('sb'));
 window.addEventListener('offline',()=>nbarRender('net'));
 
@@ -1116,6 +1403,7 @@ function saveLocal(fromSupabase){
 
 /* Lên lịch sync sau 1.5s (debounce - tránh sync liên tục khi thao tác nhanh) */
 function scheduleSync(){
+  if(getProvider()!=='gdrive'){_syncPending=true;return;}
   if(!gdToken){                  // chưa đăng nhập → đánh dấu chờ
     _syncPending=true;
     return;
@@ -1127,7 +1415,7 @@ function scheduleSync(){
 
 /* Thực hiện sync âm thầm (không hiện loading lớn) */
 async function autoSync(){
-  if(!gdToken||_syncInProgress)return;
+  if(!gdToken||_syncInProgress||getProvider()!=='gdrive')return;
   if(!navigator.onLine){        // offline → giữ pending, chờ online
     setSyncStatus('pending');
     return;
