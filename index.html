@@ -453,20 +453,34 @@ let gdToken=null,gdUser=null,gdSpreadsheetId=null,gdTokenClient=null,gdLastSync=
 let _toastT=null,_popupResolve=null,_silentRefresh=false;
 
 const COLORS=['#2e7d32','#1565c0','#c62828','#ef6c00','#6a1b9a','#00838f','#4e342e'];
+/* Lịch tiêm tham khảo theo quy trình phổ biến ở Việt Nam (luôn ưu tiên hướng dẫn của thú y và nhãn vắc xin).
+   Heo mẹ: dFB = số ngày tính từ ngày phối (đẻ ~ngày 114); dFBR = số ngày sau khi đẻ. pre = mũi trước phối
+   (heo thường được nhập vào app đúng ngày phối nên không báo "quá hạn" cho mũi này). */
 const M_VACS=[
-  {n:"Parvo, Dịch tả, Giả dại",m:"3-6t trước",dFB:-28},
-  {n:"Vắc xin Dịch tả",m:"Tuần 10 thai",dFB:70},
-  {n:"E.coli (1), LMLM",m:"Tuần 12 thai",dFB:84},
-  {n:"Vắc xin E.coli (2)",m:"Tuần 14 thai",dFB:98},
-  {n:"Tai xanh, Giả dại, LMLM, Parvo",m:"2-4t sau sinh",dFBR:21}
+  {n:"Parvo, Dịch tả, Giả dại",m:"2-4 tuần trước phối",dFB:-21,pre:true},
+  {n:"LMLM, E.coli (1)",m:"6 tuần trước đẻ",dFB:72},
+  {n:"E.coli (2)",m:"3 tuần trước đẻ",dFB:93},
+  {n:"Tẩy giun, trị ghẻ",m:"2 tuần trước đẻ",dFB:100},
+  {n:"Tai xanh",m:"2-3 tuần sau đẻ",dFBR:18}
 ];
 const B_VACS=[
   {n:"Sắt (L1)",m:"1-3 ngày",dFBR:2},
-  {n:"Cầu trùng",m:"3-4 ngày",dFBR:4},
-  {n:"Sắt (2), Suyễn, Tai xanh (1)",m:"10-14 ngày",dFBR:12},
-  {n:"E.coli, Dịch tả, Phó thương hàn",m:"21-28 ngày",dFBR:25},
-  {n:"LMLM, Dịch tả (2), Tai xanh (2)",m:"45-60 ngày",dFBR:52}
+  {n:"Cầu trùng (uống)",m:"3-5 ngày",dFBR:4},
+  {n:"Sắt (2)",m:"10-14 ngày",dFBR:12},
+  {n:"Circo, Suyễn",m:"14-21 ngày",dFBR:17},
+  {n:"Tai xanh",m:"21-24 ngày",dFBR:22},
+  {n:"Dịch tả (1), Phó thương hàn",m:"25-30 ngày",dFBR:28},
+  {n:"LMLM (1)",m:"40-45 ngày",dFBR:42},
+  {n:"Dịch tả (2), Tụ huyết trùng",m:"50-60 ngày",dFBR:55},
+  {n:"LMLM (2)",m:"3-4 tuần sau mũi 1",dFBR:68}
 ];
+/* Tên mũi cũ → mũi mới tương ứng: giữ lại dấu "đã tiêm" khi đổi lịch */
+const VAC_RENAME={
+  'M_E.coli (1), LMLM':['M_LMLM, E.coli (1)'],'M_Vắc xin E.coli (2)':['M_E.coli (2)'],
+  'M_Tai xanh, Giả dại, LMLM, Parvo':['M_Tai xanh'],'B_Cầu trùng':['B_Cầu trùng (uống)'],
+  'B_Sắt (2), Suyễn, Tai xanh (1)':['B_Sắt (2)'],'B_E.coli, Dịch tả, Phó thương hàn':['B_Dịch tả (1), Phó thương hàn'],
+  'B_LMLM, Dịch tả (2), Tai xanh (2)':['B_LMLM (1)','B_Dịch tả (2), Tụ huyết trùng']
+};
 
 /* ══ POPUP ══ */
 let _popupChain=Promise.resolve();
@@ -960,80 +974,249 @@ function sbMarkDirty(){
   _sbTimer=setTimeout(()=>sbSync(),1500);
 }
 
-/* Đồng bộ 2 chiều: tải bản mới từ máy khác, đẩy thay đổi của máy này; 2 bên cùng sửa → hỏi người dùng */
-async function sbSync(firstLogin){
-  if(!sbClient||!sbUser||!navigator.onLine||getProvider()!=='supabase')return;
+/* ── Dữ liệu trên Supabase: mảng heo + các dấu xoá {uid,_del:thời điểm} ── */
+function splitRemote(arr){
+  const list=[],del={};
+  (Array.isArray(arr)?arr:[]).forEach(x=>{if(x&&x._del&&x.uid)del[x.uid]=+x._del;else if(x&&x.name&&isYMD(x.breedDate))list.push(x);});
+  return{pigs:normalizePigs(list)||[],del};
+}
+function cnSetRow(row){
+  if(!row){_cnRow=false;return;}
+  const R=splitRemote(row.pigs);
+  _cnRow={pigs:R.pigs,del:R.del,updated_at:row.updated_at};_cnRowAt=Date.now();
+}
+/* Gộp 2 bên theo từng con: con nào sửa SAU CÙNG thì giữ bản đó; con bị xoá sau lần sửa cuối thì xoá */
+function mergePigs(local,ldel,remote,rdel){
+  const del={...rdel};
+  for(const u in ldel)del[u]=Math.max(del[u]||0,ldel[u]);
+  const m=new Map();
+  remote.forEach(p=>m.set(p.uid,p));
+  local.forEach(p=>{const c=m.get(p.uid);if(!c||(p.upd||0)>=(c.upd||0))m.set(p.uid,p);});
+  return{pigs:[...m.values()].filter(p=>!(del[p.uid]>=(p.upd||0))),del};
+}
+const sigUpd=a=>a.map(p=>p.uid+':'+(p.upd||0)).sort().join(',');
+const sigDel=d=>Object.keys(d).sort().map(k=>k+':'+d[k]).join(',');
+
+/* Đồng bộ 2 chiều. Máy nào lưu lên sau thì dữ liệu sau cùng được giữ (theo từng con heo); heo
+   do máy khác thêm/sửa mà máy này không đụng tới vẫn được giữ nguyên, không còn hỏi chọn bản. */
+let _sbStale=0;
+async function sbSync(firstLogin,force){
+  if(!sbClient||!sbUser||!navigator.onLine||(!force&&getProvider()!=='supabase'))return;
   if(_sbBusy){_sbAgain=true;return;}
   _sbBusy=true;
   try{
     const{data:row,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
     if(error)throw error;
     const meta=sbMeta();
-    const remoteNew=row&&row.updated_at!==meta.rev;
     if(!row){
-      await sbUpload();                                   // tài khoản mới → đẩy dữ liệu máy này lên
-    }else if(remoteNew&&(firstLogin||!meta.rev)&&pigs.length&&JSON.stringify(normalizePigs(row.pigs))!==JSON.stringify(pigs)){
-      await sbAskConflict(row,'Máy này và tài khoản đều đã có dữ liệu heo.');
-    }else if(remoteNew&&meta.dirty&&pigs.length){
-      await sbAskConflict(row,'Dữ liệu vừa được sửa trên <b>máy khác</b> trong lúc máy này cũng có thay đổi.');
-    }else if(remoteNew){
-      sbApply(row);                                       // máy khác vừa sửa → lấy về
-    }else if(meta.dirty){
-      await sbUpload();
-    }else sbStatus('✅ Đã đồng bộ');
+      if(pigs.length||Object.keys(delGet()).length)await sbUpload(null);   // tài khoản mới → đẩy dữ liệu máy này lên
+      else sbStatus('✅ Đã đồng bộ');
+    }else if(row.updated_at===meta.rev){
+      if(meta.dirty)await sbUpload(row.updated_at);                        // chỉ máy này có thay đổi
+      else{cnSetRow(row);sbStatus('✅ Đã đồng bộ');}
+    }else{
+      const R=splitRemote(row.pigs);
+      let takeRemote=false;
+      // Lần đầu đăng nhập trên máy đang có sẵn dữ liệu khác với tài khoản → hỏi gộp hay chỉ lấy bản trên mạng
+      if(!meta.rev&&pigs.length&&R.pigs.length&&sigUpd(R.pigs)!==sigUpd(pigs)){
+        takeRemote=await showPopup({icon:'🔀',title:'Máy này đã có dữ liệu',
+          msg:`☁️ Trên Supabase: <b>${R.pigs.length} con</b><br>📱 Trên máy này: <b>${pigs.length} con</b><br><br><b>Gộp cả hai</b>: giữ heo của cả 2 bên (con trùng thì lấy bản sửa sau cùng).<br><b>Chỉ lấy bản Supabase</b>: bỏ dữ liệu đang có trên máy này.`,
+          okText:'☁️ Chỉ lấy bản Supabase',cancelText:'🔀 Gộp cả hai'});
+      }
+      if(takeRemote){sbApply(row);}
+      else{
+        const M=mergePigs(pigs,delGet(),R.pigs,R.del);
+        const localChanged=sigUpd(M.pigs)!==sigUpd(pigs);
+        delSet(M.del);
+        if(localChanged){pigs=M.pigs;saveLocal(true);}
+        if(sigUpd(M.pigs)!==sigUpd(R.pigs)||sigDel(delGet())!==sigDel(R.del))await sbUpload(row.updated_at);
+        else{sbSetMeta({rev:row.updated_at,dirty:false});cnSetRow(row);}
+        if(localChanged)sbStatus('📥 Đã nhận dữ liệu mới lúc '+new Date().toLocaleTimeString('vi-VN'));
+        else if(_sbBar!=='ok')sbStatus('✅ Đã đồng bộ');
+      }
+    }
+    _sbStale=0;
   }catch(e){
-    sbStatus('⚠️ Lỗi đồng bộ: '+sbErrMsg(e));
-    console.warn('Supabase sync:',e);
+    if(e&&e.stale&&_sbStale<3){_sbStale++;_sbAgain=true;}   // máy khác vừa ghi chen vào → làm lại
+    else{_sbStale=0;sbStatus('⚠️ Lỗi đồng bộ: '+sbErrMsg(e));console.warn('Supabase sync:',e);}
   }
   _sbBusy=false;
-  if(_sbAgain){_sbAgain=false;sbSync();}
+  if(_sbAgain){_sbAgain=false;sbSync(false,force);}
 }
-async function sbUpload(){
+/* Ghi lên Supabase. expectRev: bản trên mạng lúc vừa đọc (chỉ ghi nếu chưa ai ghi chen vào);
+   null = tài khoản chưa có dòng nào; undefined = ghi đè bắt buộc */
+async function sbUpload(expectRev){
   sbStatus('Đang đẩy lên…');
-  const sent=JSON.stringify(pigs);
-  const{data,error}=await sbClient.from(SB_TABLE).upsert({user_id:sbUser.id,pigs:JSON.parse(sent),updated_at:new Date().toISOString()},{onConflict:'user_id'}).select('updated_at').single();
-  if(error)throw error;
+  const sent=JSON.stringify(pigs),del=delGet();
+  const payload={pigs:[...JSON.parse(sent),...Object.entries(del).map(([uid,t])=>({uid,_del:t}))],updated_at:new Date().toISOString()};
+  const T=sbClient.from(SB_TABLE);
+  let res;
+  if(expectRev===undefined)res=await T.upsert({user_id:sbUser.id,...payload},{onConflict:'user_id'}).select('pigs,updated_at').single();
+  else if(expectRev===null)res=await T.insert({user_id:sbUser.id,...payload}).select('pigs,updated_at').single();
+  else res=await T.update(payload).eq('user_id',sbUser.id).eq('updated_at',expectRev).select('pigs,updated_at');
+  if(res.error){if(res.error.code==='23505')throw{stale:true};throw res.error;}
+  const row=Array.isArray(res.data)?res.data[0]:res.data;
+  if(!row)throw{stale:true};
   // Trong lúc đang gửi mà người dùng sửa tiếp → vẫn giữ dirty để lần sau đẩy tiếp
-  sbSetMeta({rev:data.updated_at,dirty:JSON.stringify(pigs)!==sent});
-  _cnRow={pigs:JSON.parse(sent),updated_at:data.updated_at};_cnRowAt=Date.now();
+  sbSetMeta({rev:row.updated_at,dirty:JSON.stringify(pigs)!==sent});
+  cnSetRow(row);
   sbStatus('✅ Đã đồng bộ lúc '+new Date().toLocaleTimeString('vi-VN'));
 }
+/* Lấy nguyên bản trên Supabase về thay dữ liệu máy này */
 function sbApply(row){
-  const data=normalizePigs(row.pigs);
-  if(!data){sbStatus('⚠️ Dữ liệu trên Supabase không hợp lệ — bỏ qua');return;}
-  pigs=data;saveLocal(true);
+  const R=splitRemote(row.pigs);
+  pigs=R.pigs;delSet(R.del);saveLocal(true);
   sbSetMeta({rev:row.updated_at,dirty:false});
-  _cnRow=row;_cnRowAt=Date.now();
+  cnSetRow(row);
   sbStatus('📥 Đã nhận dữ liệu mới lúc '+new Date().toLocaleTimeString('vi-VN'));
-}
-async function sbAskConflict(row,why){
-  const n=Array.isArray(row.pigs)?row.pigs.length:0;
-  const t=new Date(row.updated_at).toLocaleString('vi-VN');
-  const useRemote=await showPopup({icon:'🔀',title:'Chọn bản dữ liệu',
-    msg:`${why}<br><br>☁️ Trên Supabase: <b>${n} con</b> (lúc ${t})<br>📱 Trên máy này: <b>${pigs.length} con</b><br><br>Chọn bản muốn giữ — bản còn lại sẽ bị thay thế.`,
-    okText:'☁️ Lấy bản Supabase',cancelText:'📱 Giữ bản máy này'});
-  if(useRemote)sbApply(row);else await sbUpload();
 }
 async function sbPush(manual){
   if(!sbUser)return;
-  sbBtns(true);
-  try{await sbUpload();if(manual)toast('☁️ Đã đẩy lên Supabase','ok');}
-  catch(e){sbStatus('⚠️ '+sbErrMsg(e));toast('Lỗi: '+sbErrMsg(e),'err');}
-  sbBtns(false);
+  sbSetMeta({dirty:true});
+  await sbSync(false,true);
+  if(manual)toast(_sbBar==='error'?'Lỗi: '+_sbBarMsg:'☁️ Đã đồng bộ với Supabase',_sbBar==='error'?'err':'ok');
 }
 async function sbPullManual(){
   if(!sbUser)return;
-  sbBtns(true);
   try{
     const{data:row,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
     if(error)throw error;
     if(!row){toast('Tài khoản chưa có dữ liệu trên Supabase','err');}
     else{
-      const ok=await showPopup({icon:'📥',title:'Tải về từ Supabase',msg:`Bản lúc <b>${new Date(row.updated_at).toLocaleString('vi-VN')}</b> (${Array.isArray(row.pigs)?row.pigs.length:0} con).<br><br>⚠️ Sẽ <b>ghi đè</b> dữ liệu trên máy này. Tiếp tục?`,okText:'Tải về',okClass:'danger'});
+      const ok=await showPopup({icon:'📥',title:'Tải về từ Supabase',msg:`Bản lúc <b>${new Date(row.updated_at).toLocaleString('vi-VN')}</b> (${splitRemote(row.pigs).pigs.length} con).<br><br>⚠️ Sẽ <b>ghi đè</b> dữ liệu trên máy này. Tiếp tục?`,okText:'Tải về',okClass:'danger'});
       if(ok){sbApply(row);toast('📥 Đã tải về từ Supabase','ok');}
     }
   }catch(e){sbStatus('⚠️ '+sbErrMsg(e));toast('Lỗi: '+sbErrMsg(e),'err');}
-  sbBtns(false);
+}
+
+/* ══ LỊCH ÂM VIỆT NAM (thuật toán thiên văn Hồ Ngọc Đức, múi giờ +7 — giống app Mủ Cao Su) ══ */
+function _lcJdFromDate(dd, mm, yy){
+  var a = Math.floor((14 - mm) / 12);
+  var y = yy + 4800 - a;
+  var m = mm + 12 * a - 3;
+  var jd = dd + Math.floor((153*m+2)/5) + 365*y + Math.floor(y/4) - Math.floor(y/100) + Math.floor(y/400) - 32045;
+  if (jd < 2299161) jd = dd + Math.floor((153*m+2)/5) + 365*y + Math.floor(y/4) - 32083;
+  return jd;
+}
+function _lcNewMoon(k){
+  var T = k/1236.85, T2=T*T, T3=T2*T, dr=Math.PI/180;
+  var Jd1 = 2415020.75933 + 29.53058868*k + 0.0001178*T2 - 0.000000155*T3;
+  Jd1 += 0.00033*Math.sin((166.56+132.87*T-0.009173*T2)*dr);
+  var M = 359.2242 + 29.10535608*k - 0.0000333*T2 - 0.00000347*T3;
+  var Mpr = 306.0253 + 385.81691806*k + 0.0107306*T2 + 0.00001236*T3;
+  var F = 21.2964 + 390.67050646*k - 0.0016528*T2 - 0.00000239*T3;
+  var C1 = (0.1734-0.000393*T)*Math.sin(M*dr) + 0.0021*Math.sin(2*dr*M);
+  C1 = C1 - 0.4068*Math.sin(Mpr*dr) + 0.0161*Math.sin(dr*2*Mpr);
+  C1 = C1 - 0.0004*Math.sin(dr*3*Mpr);
+  C1 = C1 + 0.0104*Math.sin(dr*2*F) - 0.0051*Math.sin(dr*(M+Mpr));
+  C1 = C1 - 0.0074*Math.sin(dr*(M-Mpr)) + 0.0004*Math.sin(dr*(2*F+M));
+  C1 = C1 - 0.0004*Math.sin(dr*(2*F-M)) - 0.0006*Math.sin(dr*(2*F+Mpr));
+  C1 = C1 + 0.0010*Math.sin(dr*(2*F-Mpr)) + 0.0005*Math.sin(dr*(2*Mpr+M));
+  var deltat = (T < -11) ? (0.001 + 0.000839*T + 0.0002261*T2 - 0.00000845*T3 - 0.000000081*T*T3) : (-0.000278 + 0.000265*T + 0.000262*T2);
+  return Jd1 + C1 - deltat;
+}
+function _lcSunLongitude(jdn){
+  var T = (jdn - 2451545.0) / 36525, T2=T*T, dr=Math.PI/180;
+  var M = 357.52910 + 35999.05030*T - 0.0001559*T2 - 0.00000048*T*T2;
+  var L0 = 280.46645 + 36000.76983*T + 0.0003032*T2;
+  var DL = (1.914600-0.004817*T-0.000014*T2)*Math.sin(dr*M);
+  DL = DL + (0.019993-0.000101*T)*Math.sin(dr*2*M) + 0.000290*Math.sin(dr*3*M);
+  var L = (L0+DL) * dr;
+  L = L - Math.PI*2*Math.floor(L/(Math.PI*2));
+  return L;
+}
+function _lcNewMoonDay(k, tz){ return Math.floor(_lcNewMoon(k) + 0.5 + tz/24); }
+function _lcSunLongitudeDay(dayNumber, tz){ return Math.floor(_lcSunLongitude(dayNumber - 0.5 - tz/24) / Math.PI * 6); }
+function _lcMonth11(yy, tz){
+  var off = _lcJdFromDate(31, 12, yy) - 2415021.076998695;
+  var k = Math.floor(off / 29.530588853);
+  var nm = _lcNewMoonDay(k, tz);
+  var sunLong = _lcSunLongitudeDay(nm, tz);
+  if (sunLong >= 9) nm = _lcNewMoonDay(k - 1, tz);
+  return nm;
+}
+function _lcLeapOffset(a11, tz){
+  var k = Math.floor((a11 - 2415021.076998695) / 29.530588853 + 0.5);
+  var last = 0, i = 1;
+  var arc = _lcSunLongitudeDay(_lcNewMoonDay(k+i, tz), tz);
+  do { last = arc; i++; arc = _lcSunLongitudeDay(_lcNewMoonDay(k+i, tz), tz); } while (arc !== last && i < 14);
+  return i - 1;
+}
+// Đổi ngày dương lịch (dd/mm/yy) sang âm lịch → {day, month, year, leap}
+function solar2Lunar(dd, mm, yy){
+  var tz = 7;
+  var dayNumber = _lcJdFromDate(dd, mm, yy);
+  var k = Math.floor((dayNumber - 2415021.076998695) / 29.530588853);
+  var monthStart = _lcNewMoonDay(k+1, tz);
+  if (monthStart > dayNumber) monthStart = _lcNewMoonDay(k, tz);
+  var a11 = _lcMonth11(yy, tz);
+  var b11 = a11;
+  var lunarYear;
+  if (a11 >= monthStart) { lunarYear = yy; a11 = _lcMonth11(yy-1, tz); }
+  else { lunarYear = yy+1; b11 = _lcMonth11(yy+1, tz); }
+  var lunarDay = dayNumber - monthStart + 1;
+  var diff = Math.floor((monthStart - a11) / 29);
+  var lunarLeap = 0;
+  var lunarMonth = diff + 11;
+  if (b11 - a11 > 365) {
+    var leapMonthDiff = _lcLeapOffset(a11, tz);
+    if (diff >= leapMonthDiff) { lunarMonth = diff + 10; if (diff === leapMonthDiff) lunarLeap = 1; }
+  }
+  if (lunarMonth > 12) lunarMonth -= 12;
+  if (lunarMonth >= 11 && diff < 4) lunarYear -= 1;
+  return { day: lunarDay, month: lunarMonth, year: lunarYear, leap: lunarLeap === 1 };
+}
+function _moonPhaseIcon(lunarDay){
+  var d = Math.max(1, Math.min(30, lunarDay || 1));
+  if (d === 1) return '🌑';
+  if (d <= 6) return '🌒';
+  if (d <= 8) return '🌓';
+  if (d <= 13) return '🌔';
+  if (d <= 16) return '🌕';
+  if (d <= 21) return '🌖';
+  if (d <= 23) return '🌗';
+  return '🌘';
+}
+// Tính độ dài tháng âm lịch (29 hoặc 30 ngày) chứa ngày `d` — dò từng ngày tới khi gặp lại "mùng 1"
+// của tháng kế tiếp, dùng để xác định đúng "2 ngày ăn chay cuối tháng" (29-30 nếu tháng đủ, 28-29
+// nếu tháng thiếu) thay vì cố định cứng 29/30 như trước (sai với tháng thiếu).
+function _lunarMonthLength(baseDate){
+  try {
+    var d = new Date(baseDate);
+    var lun0 = solar2Lunar(d.getDate(), d.getMonth()+1, d.getFullYear());
+    var first = new Date(d);
+    first.setDate(first.getDate() - (lun0.day - 1));
+    var probe = new Date(first);
+    for (var i = 0; i < 35; i++) {
+      probe.setDate(probe.getDate() + 1);
+      var lp = solar2Lunar(probe.getDate(), probe.getMonth()+1, probe.getFullYear());
+      if (lp.day === 1) return Math.round((probe - first) / 86400000);
+    }
+  } catch(e) {}
+  return 30; // dò không ra thì coi như tháng đủ, an toàn hơn báo sai
+}
+// Danh sách ngày ăn chay đúng cho tháng chứa ngày `d`: 14, 15, 24 cố định + 2 ngày cuối cùng thật sự
+// của tháng đó (29-30 nếu tháng đủ 30 ngày, 28-29 nếu tháng thiếu chỉ có 29 ngày).
+function _chayDaysOfMonth(d){
+  var len = _lunarMonthLength(d);
+  return (len >= 30) ? [14,15,24,29,30] : [14,15,24,len-1,len];
+}
+function lunarYearName(y){return['Canh','Tân','Nhâm','Quý','Giáp','Ất','Bính','Đinh','Mậu','Kỷ'][y%10]+' '+['Thân','Dậu','Tuất','Hợi','Tý','Sửu','Dần','Mão','Thìn','Tỵ','Ngọ','Mùi'][y%12];}
+function lunarSlides(){
+  const out=[];
+  try{
+    const now=new Date(),lun=solar2Lunar(now.getDate(),now.getMonth()+1,now.getFullYear());
+    out.push({k:'lunar',ico:_moonPhaseIcon(lun.day),cls:'ok',t:`Âm lịch: ngày ${lun.day}${lun.leap?' (nhuận)':''} tháng ${lun.month} năm ${lun.year} (${lunarYearName(lun.year)})`});
+    const chay=_chayDaysOfMonth(now);
+    if(chay.indexOf(lun.day)!==-1)out.push({k:'chay',ico:'🙏',cls:'busy',t:`Hôm nay ngày ${lun.day} âm lịch — ngày ăn chay`});
+    else{
+      const tm=new Date(now);tm.setDate(tm.getDate()+1);
+      const lt=solar2Lunar(tm.getDate(),tm.getMonth()+1,tm.getFullYear());
+      const chayT=(lt.month===lun.month&&lt.year===lun.year)?chay:_chayDaysOfMonth(tm);
+      if(chayT.indexOf(lt.day)!==-1)out.push({k:'chay',ico:'🙏',cls:'busy',t:`Ngày mai (${lt.day} âm lịch) là ngày ăn chay`});
+    }
+  }catch(e){}
+  return out;
 }
 
 /* ══ THANH THÔNG BÁO ĐA NHIỆM ══
@@ -1044,7 +1227,7 @@ function fmtSyncTime(ms){
   const d=new Date(ms);
   return d.toLocaleTimeString('vi-VN')+(ymd(d)===today()?' hôm nay':' ngày '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'));
 }
-function nbarSlides(){
+function nbarSlides(o){
   const out=[],online=navigator.onLine;
   if(!online)out.push({k:'net',ico:'📴',cls:'bad',t:'Không có mạng — dữ liệu vẫn lưu trên máy, sẽ tự đồng bộ khi có mạng lại'});
   const prov=getProvider();
@@ -1066,6 +1249,7 @@ function nbarSlides(){
     out.push(checking?{k:'sb',ico:'⏳',cls:'busy',t:'Đang kiểm tra kết nối…'}
       :{k:'sb',ico:'⚠️',cls:'bad',t:'Chưa đăng nhập Supabase — dữ liệu chỉ lưu trên máy này. Nhấp đúp vào đây để đăng nhập'});
   }
+  if(!o||!o.noLunar)out.push(...lunarSlides());
   if(prov==='gdrive'&&!gdUser)out.push({k:'gd',ico:'⚠️',cls:'bad',t:'Chưa đăng nhập Google Drive — dữ liệu chỉ lưu trên máy này. Nhấp đúp vào đây để đăng nhập'});
   return out;
 }
@@ -1101,7 +1285,7 @@ function nbarRender(key){
 /* Cập nhật bảng trạng thái trong trang kết nối (nếu đang mở) */
 function syncSummaryRender(){
   const el=document.getElementById('sync-summary');if(!el)return;
-  el.innerHTML=nbarSlides().map(s=>`<div class="${s.cls}"><span>${s.ico}</span><span>${esc(s.t.replace(/ Nhấp đúp vào đây để đăng nhập.*$/,''))}</span></div>`).join('');
+  el.innerHTML=nbarSlides({noLunar:true}).map(s=>`<div class="${s.cls}"><span>${s.ico}</span><span>${esc(s.t.replace(/ Nhấp đúp vào đây để đăng nhập.*$/,''))}</span></div>`).join('');
 }
 let _nbarTapT=null;
 function nbarTap(){
@@ -1193,7 +1377,7 @@ function cnRender(view,o){
     return `<div class="cn-acct"><div class="cn-av">${em.charAt(0).toUpperCase()}</div><div style="min-width:0"><div style="font-weight:800">Tài khoản Supabase</div><div style="font-size:12.5px;color:#666;overflow:hidden;text-overflow:ellipsis">${em}</div></div></div>
       <div id="cn-rows"></div>
       <div style="height:8px"></div>`
-      +cnOpt('⬆️','Đồng bộ ngay','Đẩy toàn bộ dữ liệu trên máy này lên Supabase',"sbPush(true)",'hl')
+      +cnOpt('⬆️','Đồng bộ ngay','Gộp dữ liệu máy này với Supabase (bản sửa sau cùng được giữ)',"sbPush(true)",'hl')
       +cnOpt('⬇️','Khôi phục từ Supabase','Tải dữ liệu trên Supabase về, ghi đè dữ liệu máy này',"sbPullManual()")
       +cnOpt('📊','Xem dữ liệu &amp; tải PDF','Lọc theo tình trạng, tháng phối, tên heo — xuất báo cáo PDF',"cnShow('sb-data')")
       +cnOpt('📁','Thư mục lưu trữ Supabase','Xem dung lượng từng con, xoá bớt khi cần',"cnShow('sb-store')")
@@ -1240,7 +1424,7 @@ async function cnFetchRow(){
   try{
     const{data,error}=await sbClient.from(SB_TABLE).select('pigs,updated_at').eq('user_id',sbUser.id).maybeSingle();
     if(error)throw error;
-    _cnRow=data||false;_cnRowAt=Date.now();
+    cnSetRow(data);
   }catch(e){toast('Lỗi tải dữ liệu Supabase: '+sbErrMsg(e),'err');}
   return _cnRow;
 }
@@ -1258,7 +1442,7 @@ function cnFilterUI(){
   if(f==='month'&&!document.getElementById('cn-fm').value)document.getElementById('cn-fm').value=today().slice(0,7);
 }
 function cnFiltered(){
-  const list=normalizePigs((_cnRow&&_cnRow.pigs)||[])||[];
+  const list=(_cnRow&&_cnRow.pigs)||[];
   const f=(document.getElementById('cn-f')||{}).value||'all';
   const mo=(document.getElementById('cn-fm')||{}).value||'',q=((document.getElementById('cn-fn')||{}).value||'').trim().toLowerCase();
   return list.filter(p=>{
@@ -1329,28 +1513,29 @@ function cnStoreRender(){
   const el=document.getElementById('cn-store');if(!el)return;
   if(_cnRow===false){el.innerHTML='<div class="cn-note">Tài khoản chưa có dữ liệu trên Supabase.</div>';return;}
   if(!_cnRow){el.innerHTML='<div class="cn-note">Không tải được dữ liệu.</div>';return;}
-  const list=normalizePigs(_cnRow.pigs||[])||[],tot=cnSize(_cnRow.pigs),pct=Math.max(.5,Math.min(100,tot/SB_QUOTA*100));
+  const list=_cnRow.pigs,tot=cnSize(_cnRow.pigs),pct=Math.max(.5,Math.min(100,tot/SB_QUOTA*100));
   el.innerHTML=`<div class="cn-row"><span>💾 Dung lượng đang dùng</span><b>${fmtSize(tot)} / 500 MB</b></div>
     <div class="cn-quota"><i style="width:${pct}%"></i></div>
     <div class="cn-row"><span>🐷 Số heo trên Supabase</span><b>${list.length} con</b></div>
     <div class="cn-row"><span>🕐 Cập nhật lúc</span><b>${new Date(_cnRow.updated_at).toLocaleString('vi-VN')}</b></div>
     <div class="cn-note" style="text-align:left;margin-top:10px">Chọn heo muốn xoá — sẽ xoá <b>cả trên máy này và trên Supabase</b> (nếu chỉ xoá trên Supabase, lần đồng bộ sau máy sẽ đẩy lên lại).</div>
     <div style="display:flex;gap:6px;margin-bottom:6px"><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('sold')">Chọn heo đã xuất</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('all')">Chọn tất cả</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('none')">Bỏ chọn</button></div>
-    <div style="max-height:40vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-bottom:10px">${list.length?[...list].sort((a,b)=>cnSize([b])-cnSize([a])).map(p=>`<label class="cn-pig"><input type="checkbox" class="cn-chk" value="${p.id}" data-sold="${p.sellPrice!==null?1:0}"><span class="nm">🐷 ${esc(p.name)}<small>${p.sellPrice!==null?'🏷️ Đã xuất '+fmtFull(p.sellDate):'Đang nuôi · dự sinh '+fmtFull(p.dueDate)} · ${p.expenses.length} khoản chi</small></span><b style="font-size:12px;color:#666">${fmtSize(cnSize([p]))}</b></label>`).join(''):'<div class="cn-note">Trống</div>'}</div>
+    <div style="max-height:40vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-bottom:10px">${list.length?[...list].sort((a,b)=>cnSize([b])-cnSize([a])).map(p=>`<label class="cn-pig"><input type="checkbox" class="cn-chk" value="${p.uid}" data-sold="${p.sellPrice!==null?1:0}"><span class="nm">🐷 ${esc(p.name)}<small>${p.sellPrice!==null?'🏷️ Đã xuất '+fmtFull(p.sellDate):'Đang nuôi · dự sinh '+fmtFull(p.dueDate)} · ${p.expenses.length} khoản chi</small></span><b style="font-size:12px;color:#666">${fmtSize(cnSize([p]))}</b></label>`).join(''):'<div class="cn-note">Trống</div>'}</div>
     <button class="cn-btn red" onclick="cnDeleteSelected()">🗑️ Xoá các heo đã chọn</button>
     <button class="cn-btn red" onclick="cnDeleteCloud()">⚠️ Xoá toàn bộ dữ liệu trên Supabase</button>`;
 }
 function cnSelect(k){document.querySelectorAll('.cn-chk').forEach(c=>c.checked=k==='all'||k==='sold'&&c.dataset.sold==='1');}
 async function cnDeleteSelected(){
-  const ids=[...document.querySelectorAll('.cn-chk:checked')].map(c=>+c.value);
+  const ids=[...document.querySelectorAll('.cn-chk:checked')].map(c=>c.value);
   if(!ids.length)return showAlert('⚠️','Chưa chọn','Hãy tích chọn ít nhất 1 con heo để xoá.');
-  const names=(normalizePigs(_cnRow.pigs)||[]).filter(p=>ids.includes(p.id)).map(p=>esc(p.name));
+  const names=_cnRow.pigs.filter(p=>ids.includes(p.uid)).map(p=>esc(p.name));
   const ok=await showPopup({icon:'🗑️',title:'Xoá '+ids.length+' con heo',msg:`${names.slice(0,8).join(', ')}${names.length>8?'…':''}<br><br><span style="color:#d32f2f">Xoá vĩnh viễn trên <b>máy này và Supabase</b>. Không thể khôi phục!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
   if(!ok)return;
-  // Lấy theo bản trên Supabase (đã gồm thay đổi từ máy khác), bỏ các con đã chọn rồi ghi cả 2 nơi
-  pigs=(normalizePigs(_cnRow.pigs)||[]).filter(p=>!ids.includes(p.id));
-  saveLocal(true);
-  try{await sbUpload();toast('✅ Đã xoá '+ids.length+' con','ok');}catch(e){sbSetMeta({dirty:true});toast('Đã xoá trên máy, chưa đẩy được lên Supabase: '+sbErrMsg(e),'err');}
+  // Ghi dấu xoá (để máy khác cũng xoá theo), xoá trên máy rồi đồng bộ
+  const del=delGet(),now=Date.now();ids.forEach(u=>{del[u]=now;});delSet(del);
+  pigs=pigs.filter(p=>!ids.includes(p.uid));saveLocal();
+  await sbSync(false,true);
+  toast(_sbBar==='error'?'Đã xoá trên máy, chưa đẩy được lên Supabase: '+_sbBarMsg:'✅ Đã xoá '+ids.length+' con',_sbBar==='error'?'err':'ok');
   _cnRowAt=0;cnLoadRow('sb-store');
 }
 async function cnDeleteCloud(){
@@ -1422,6 +1607,7 @@ function loadLocal(){
     }
     pigs=ok;
   }
+  snapTake();
   render();
 }
 
@@ -1430,7 +1616,26 @@ let _syncTimer=null;
 let _syncPending=false;          // đang có thay đổi chưa sync
 let _syncInProgress=false;       // đang upload
 
+/* Ảnh chụp lần lưu trước (uid → nội dung) để biết con nào vừa được sửa / xoá.
+   Dấu xoá (uid → thời điểm xoá) lưu riêng để máy khác biết mà xoá theo, giữ 90 ngày. */
+const DEL_KEY='QUANLYHEO_DELETED';
+let _snap={};
+function pigSig(p){const{upd,id,color,...r}=p;return JSON.stringify(r);}
+function snapTake(){_snap={};pigs.forEach(p=>{_snap[p.uid]=pigSig(p);});}
+function delGet(){try{return JSON.parse(localStorage.getItem(DEL_KEY))||{};}catch(e){return{};}}
+function delSet(d){
+  const lim=Date.now()-90*864e5;
+  for(const k in d)if(!(d[k]>=lim))delete d[k];
+  try{localStorage.setItem(DEL_KEY,JSON.stringify(d));}catch(e){}
+}
 function saveLocal(fromSupabase){
+  if(!fromSupabase){
+    const now=Date.now(),seen=new Set(),del=delGet();
+    pigs.forEach(p=>{seen.add(p.uid);if(_snap[p.uid]!==pigSig(p))p.upd=now;});
+    for(const u in _snap)if(!seen.has(u))del[u]=now;
+    delSet(del);
+  }
+  snapTake();
   try{localStorage.setItem(STORAGE_KEY,JSON.stringify(pigs));}
   catch(e){showAlert('❌','Không lưu được trên máy','Bộ nhớ trình duyệt đã đầy hoặc bị chặn — thay đổi <b>chưa được lưu trên máy</b>.<br>Hãy đồng bộ lên Supabase/Google Drive hoặc sao lưu ra file ngay.');}
   render();
@@ -1557,7 +1762,7 @@ function addPig(){
   if(!d)return showAlert('⚠️','Thiếu ngày','Vui lòng chọn <b>ngày phối giống</b>!');
   const maxId=pigs.length>0?Math.max(...pigs.map(p=>p.id)):0;const id=maxId+1;
   pigs.push({
-    id,name:n,breedDate:d,breedCount:1,
+    id,uid:newUid(),name:n,breedDate:d,breedCount:1,
     dueDate:addDays(d,114),
     actualBirth:null,doneVacs:{},expenses:[],
     sellPrice:null,sellDate:null,
@@ -1693,15 +1898,22 @@ function normalizePigs(arr){
     if(!raw||typeof raw!=='object'||!raw.name||!isYMD(raw.breedDate))return null;
     const p={...raw};
     p.name=String(p.name);
+    // uid: mã cố định của từng con (dùng để gộp dữ liệu giữa các máy); upd: thời điểm sửa gần nhất.
+    // Dữ liệu cũ chưa có uid → tạo từ id+tên+ngày thêm để mọi máy (đang có cùng dữ liệu) ra cùng 1 mã.
+    if(!p.uid)p.uid='m'+strHash(String(raw.id)+'|'+p.name+'|'+(p.dateAdded||''));
+    p.upd=+p.upd||0;
     if(!isYMD(p.dueDate))p.dueDate=addDays(p.breedDate,114);
     if(!isYMD(p.actualBirth))p.actualBirth=null;
     p.breedCount=parseInt(p.breedCount)||1;
-    p.doneVacs=(p.doneVacs&&typeof p.doneVacs==='object')?p.doneVacs:{};
+    p.doneVacs=(p.doneVacs&&typeof p.doneVacs==='object')?{...p.doneVacs}:{};
+    for(const o in VAC_RENAME)if(o in p.doneVacs){if(p.doneVacs[o])VAC_RENAME[o].forEach(k=>{p.doneVacs[k]=true;});delete p.doneVacs[o];}
     p.expenses=Array.isArray(p.expenses)?p.expenses.filter(e=>e&&e.desc).map(e=>({desc:String(e.desc),amount:parseInt(e.amount)||0,date:isYMD(e.date)?e.date:p.breedDate,edited:!!e.edited})):[];
     p.sellPrice=(p.sellPrice===null||p.sellPrice===undefined||p.sellPrice==='')?null:(parseInt(p.sellPrice)||0);
     p.sellDate=p.sellPrice===null?null:(isYMD(p.sellDate)?p.sellDate:today());
     out.push(p);
   }
+  const uids=new Set();
+  out.forEach(p=>{if(uids.has(p.uid))p.uid=newUid();uids.add(p.uid);});
   // ID trùng hoặc thiếu → cấp ID mới
   let maxId=Math.max(0,...out.map(p=>Number.isInteger(p.id)?p.id:0));
   out.forEach(p=>{
@@ -1711,6 +1923,8 @@ function normalizePigs(arr){
   });
   return out;
 }
+function strHash(t){let h=5381;for(let i=0;i<t.length;i++)h=(h*33+t.charCodeAt(i))>>>0;return h.toString(36);}
+function newUid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8);}
 function fmtDate(s){if(!s)return'';const p=s.split('-');return`${p[2]}/${p[1]}`;}
 function fmtFull(s){if(!s)return'';const[y,m,d]=s.split('-');return`${d}/${m}/${y}`;}
 function parseViDate(s){if(!s)return null;const p=s.split('/');if(p.length!==3)return null;return`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;}
@@ -1825,7 +2039,8 @@ function renderTable(pig,vacs,isMum,now,isSold){
     const done=pig.doneVacs[(isMum?'M':'B')+'_'+v.n];
     let al='';
     if(!done&&diff>=0&&diff<=3)al=diff===0?'<br><span style="color:#d93025;font-size:12px">Hôm nay!</span>':'<br><span style="color:#d93025;font-size:12px">Còn '+diff+' ngày</span>';
-    const cls=done?'done':diff<0?'overdue':diff<=3?'warning-3days':'';
+    if(v.pre&&!done)al='';   // mũi trước phối: chỉ để đánh dấu, không báo quá hạn
+    const cls=done?'done':v.pre?'':diff<0?'overdue':diff<=3?'warning-3days':'';
     rows+=`<tr class="${cls}" ${!isSold?`ondblclick="toggleVac(${pig.id},'${isMum?'M':'B'}','${v.n}')"`:''}><td style="width:45%">${v.n}</td><td style="width:30%">${fmtDate(vd)}${al}</td><td style="width:25%;font-size:14px">${v.m}</td></tr>`;
   });
   return`<table>${rows}</table>`;
