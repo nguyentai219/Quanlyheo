@@ -378,6 +378,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
     </div>
     <div class="modal-actions">
       <button class="btn-primary" onclick="confirmExpense()">LƯU CHI PHÍ</button>
+      <button class="btn-secondary" id="expDelBtn" style="display:none;color:#c62828" onclick="deleteExpense()">🗑️ XOÁ KHOẢN CHI NÀY</button>
       <button class="btn-secondary" onclick="closeExpModal()">HUỶ</button>
     </div>
   </div>
@@ -438,6 +439,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
 </div>
 
 <div id="toast"></div>
+<input type="file" id="jsonFile" accept=".json,application/json" style="display:none" onchange="importJSON(event)">
 
 <script>
 const GD_CLIENT_ID='1051621009021-voatlnik2ddekdvatlvsfcd5clkqp76c.apps.googleusercontent.com';
@@ -467,7 +469,13 @@ const B_VACS=[
 ];
 
 /* ══ POPUP ══ */
-function showPopup({icon='❓',title='',msg='',okText='Xác nhận',cancelText='Huỷ',okClass='',single=false}){
+let _popupChain=Promise.resolve();
+function showPopup(o){
+  const r=_popupChain.then(()=>_showPopup(o));
+  _popupChain=r.catch(()=>{});
+  return r;
+}
+function _showPopup({icon='❓',title='',msg='',okText='Xác nhận',cancelText='Huỷ',okClass='',single=false}){
   return new Promise(resolve=>{
     _popupResolve=resolve;
     document.getElementById('popup-icon').textContent=icon;
@@ -528,7 +536,7 @@ function openRebreedModal(pid){
     `🐷 Heo: <b>${esc(p.name)}</b><br>`+
     `📅 Phối lần ${lần}: <b>${fmtFull(p.breedDate)}</b><br>`+
     `⚠️ Sẽ chuyển sang <b>phối lần ${lần+1}</b>, cập nhật lịch tiêm theo ngày dự sinh mới.<br>`+
-    `<span style="color:#888;font-size:13px">Lịch tiêm đã đánh dấu sẽ được giữ nguyên.</span>`;
+    `<span style="color:#888;font-size:13px">${p.actualBirth?'Heo đã đẻ lứa trước → bắt đầu <b>lứa mới</b>: các dấu "đã tiêm" của lứa cũ được xoá để theo dõi lại từ đầu.':'Heo chưa đẻ (phối lại do không đậu) → giữ nguyên các mũi đã đánh dấu.'}</span>`;
   document.getElementById('rebreedDate').value=today();
   document.getElementById('rebreedModal').classList.add('show');
   setTimeout(()=>document.getElementById('rebreedDate').focus(),200);
@@ -540,6 +548,7 @@ async function confirmRebreed(){
   const p=pigs.find(x=>x.id===currentRebreedId);
   if(!p)return;
   const lần=(p.breedCount||1)+1;
+  if(p.actualBirth)p.doneVacs={};   // lứa mới
   p.breedDate=d;
   p.dueDate=addDays(d,114);
   p.actualBirth=null;
@@ -554,6 +563,10 @@ function init(){
   document.getElementById('breedDate').value=today();
   loadLocal();
   nbarTick();
+  let day=today();
+  const dayCheck=()=>{if(today()!==day){day=today();render();nbarTick();}};
+  setInterval(dayCheck,60000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')dayCheck();});
   initSupabase();
   if(typeof google!=='undefined'&&google.accounts) setupGDrive();
   else window.addEventListener('load',()=>setTimeout(setupGDrive,600));
@@ -1141,6 +1154,7 @@ function cnShow(view,o){
   if(view==='gd'){
     document.getElementById('gd-opts').innerHTML=
       (gdUser?cnOpt('👤','Đổi tài khoản Google','Đăng nhập bằng tài khoản Google khác',"gdSwitchAccount()"):'')+
+      cnFileOpts()+
       cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Google Drive',"cnShow('picker')");
     return;
   }
@@ -1148,6 +1162,10 @@ function cnShow(view,o){
   if(view==='sb-main'&&sbUser)cnRefreshRows(true);
   if(view==='sb-data'||view==='sb-store')cnLoadRow(view);
   if(view==='sb-forgot'||view==='sb-main'&&!sbUser){const e=document.getElementById('sb-email');if(e&&!e.value)e.value=localStorage.getItem('QUANLYHEO_SB_LAST_EMAIL')||'';}
+}
+function cnFileOpts(){
+  return cnOpt('💾','Sao lưu ra file','Lưu toàn bộ dữ liệu heo vào 1 file .json trên điện thoại',"exportJSON()")
+    +cnOpt('📂','Khôi phục từ file','Chọn file .json đã sao lưu (sẽ hỏi trước khi ghi đè)',"document.getElementById('jsonFile').click()");
 }
 function cnPwField(id,ph,ac,enter){
   return `<div class="cn-pw"><input type="password" id="${id}" placeholder="${ph}" autocomplete="${ac}" ${enter?`onkeydown="if(event.key==='Enter')${enter}"`:''}><span onclick="cnEye('${id}',this)">👁️</span></div>`;
@@ -1157,8 +1175,9 @@ function cnRender(view,o){
   const prov=getProvider();
   if(view==='picker')return `<div class="cn-note" style="font-size:13px">Chọn 1 phương án để tự động sao lưu &amp; đồng bộ dữ liệu heo. Có thể đổi lại bất cứ lúc nào — dữ liệu trên máy không bị mất.</div>`
     +cnOpt('⚡','Supabase'+(prov==='supabase'?' ✓':''),'Đồng bộ nhiều điện thoại cùng 1 tài khoản, đăng nhập 1 lần, ổn định',"chooseProvider('supabase')",prov==='supabase'?'hl':'')
-    +cnOpt('☁️','Google Drive'+(prov==='gdrive'?' ✓':''),'Lưu thành file Google Sheets, dễ xem trên máy tính',"chooseProvider('gdrive')",prov==='gdrive'?'hl':'');
-  if(view==='sb-main'&&!sbClient)return `<div class="cn-note">⏳ Đang tải Supabase… (cần có mạng)</div>`+cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')");
+    +cnOpt('☁️','Google Drive'+(prov==='gdrive'?' ✓':''),'Lưu thành file Google Sheets, dễ xem trên máy tính',"chooseProvider('gdrive')",prov==='gdrive'?'hl':'')
+    +'<div class="cn-note" style="margin-top:12px">Sao lưu thủ công (không cần mạng):</div>'+cnFileOpts();
+  if(view==='sb-main'&&!sbClient)return `<div class="cn-note">⏳ Đang tải Supabase… (cần có mạng)</div>`+cnFileOpts()+cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')");
   if(view==='sb-main'&&!sbUser)return `<div style="text-align:center;padding:2px 0 12px"><div style="font-size:40px">⚡</div><div style="font-weight:800;font-size:16px">Đăng nhập / Đăng ký</div><div class="cn-note" style="margin:2px 0 0">Dùng chung 1 tài khoản trên nhiều điện thoại — dữ liệu heo tự đồng bộ giữa các máy</div></div>
     <div class="cn-form">
       <input type="email" id="sb-email" placeholder="Email" autocomplete="username">
@@ -1167,6 +1186,7 @@ function cnRender(view,o){
       <button class="cn-btn sec" id="sb-btn-up" onclick="sbSignUp()">✍️ Đăng ký tài khoản mới</button>
     </div>
     <div class="cn-link" onclick="cnShow('sb-forgot')">Quên mật khẩu?</div>`
+    +cnFileOpts()
     +cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')");
   if(view==='sb-main'){
     const em=esc(sbUser.email||'');
@@ -1179,6 +1199,7 @@ function cnRender(view,o){
       +cnOpt('📁','Thư mục lưu trữ Supabase','Xem dung lượng từng con, xoá bớt khi cần',"cnShow('sb-store')")
       +cnOpt('🔑','Đổi mật khẩu','Đặt mật khẩu đăng nhập mới',"cnShow('sb-newpass')")
       +cnOpt('👤','Đổi tài khoản','Đăng xuất để đăng nhập tài khoản Supabase khác',"sbSwitchAccount()")
+      +cnFileOpts()
       +cnOpt('🔀','Đổi phương án đồng bộ','Đang dùng: Supabase',"cnShow('picker')")
       +cnOpt('🚪','Đăng xuất','Dữ liệu trên máy này vẫn giữ nguyên',"sbSignOut()",'danger');
   }
@@ -1387,7 +1408,22 @@ window.addEventListener('online',()=>nbarRender('sb'));
 window.addEventListener('offline',()=>nbarRender('net'));
 
 /* ══ APP CORE ══ */
-function loadLocal(){const d=localStorage.getItem(STORAGE_KEY);if(d){try{pigs=normalizePigs(JSON.parse(d))||[];}catch(e){pigs=[];}}render();}
+function loadLocal(){
+  const d=localStorage.getItem(STORAGE_KEY);
+  if(d){
+    let raw=null;try{raw=JSON.parse(d);}catch(e){}
+    let ok=Array.isArray(raw)?normalizePigs(raw):null;
+    if(!ok){
+      // Không đọc được trọn vẹn: cất nguyên bản gốc sang khoá khác (không bị lần lưu sau ghi đè),
+      // dùng tạm những con còn đọc được
+      try{localStorage.setItem(STORAGE_KEY+'_LOI_'+Date.now(),d);}catch(e){}
+      ok=Array.isArray(raw)?normalizePigs(raw.filter(x=>x&&x.name&&isYMD(x.breedDate)))||[]:[];
+      setTimeout(()=>showAlert('⚠️','Dữ liệu trên máy bị lỗi',`Một phần dữ liệu heo trên máy không đọc được (đọc được <b>${ok.length}</b> con).<br>Bản gốc đã được cất giữ, không bị xoá.<br><br>Nếu thiếu heo, hãy mở trang kết nối → <b>Khôi phục</b> từ Supabase / Google Drive hoặc từ file sao lưu.`),900);
+    }
+    pigs=ok;
+  }
+  render();
+}
 
 /* ── Auto-sync sau mỗi lần lưu ── */
 let _syncTimer=null;
@@ -1395,7 +1431,8 @@ let _syncPending=false;          // đang có thay đổi chưa sync
 let _syncInProgress=false;       // đang upload
 
 function saveLocal(fromSupabase){
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(pigs));
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify(pigs));}
+  catch(e){showAlert('❌','Không lưu được trên máy','Bộ nhớ trình duyệt đã đầy hoặc bị chặn — thay đổi <b>chưa được lưu trên máy</b>.<br>Hãy đồng bộ lên Supabase/Google Drive hoặc sao lưu ra file ngay.');}
   render();
   scheduleSync();
   if(!fromSupabase)sbMarkDirty();
@@ -1536,8 +1573,8 @@ function addPig(){
 async function toggleLock(pid){
   const p=pigs.find(x=>x.id===pid);
   if(p&&p.sellPrice!==null){
-    const ok=await showPopup({icon:'🔓',title:'Mở khoá heo',msg:`Mở khoá <b>${esc(p.name)}</b> để chỉnh sửa lại dữ liệu?`,okText:'Mở khoá'});
-    if(ok){p.sellPrice=null;p.sellDate=null;saveLocal();}
+    const ok=await showPopup({icon:'🔓',title:'Mở khoá heo',msg:`Mở khoá <b>${esc(p.name)}</b> để chỉnh sửa lại dữ liệu?<br><span style="font-size:13px;color:#888">Giá bán cũ (${p.sellPrice.toLocaleString()}đ) sẽ được điền sẵn khi xuất chuồng lại.</span>`,okText:'Mở khoá'});
+    if(ok){p.prevSell={price:p.sellPrice,date:p.sellDate};p.sellPrice=null;p.sellDate=null;saveLocal();}
   }
 }
 async function updateBirthDate(pid,val){
@@ -1549,14 +1586,15 @@ async function updateBirthDate(pid,val){
 }
 async function toggleVac(pid,type,name){
   const p=pigs.find(x=>x.id===pid);
-  if(p.sellPrice!==null)return;
+  if(!p||p.sellPrice!==null)return;
   const k=type+'_'+name;const isDone=p.doneVacs[k];
   const ok=await showPopup({icon:isDone?'↩️':'💉',title:isDone?'Huỷ xác nhận tiêm':'Xác nhận đã tiêm',msg:`Vắc xin: <b>${name}</b><br>Heo: <b>${esc(p.name)}</b>`,okText:isDone?'Huỷ tiêm':'Đã tiêm rồi',okClass:isDone?'danger':''});
-  if(ok){p.doneVacs[k]=!p.doneVacs[k];saveLocal();}
+  const cur=pigs.find(x=>x.id===pid);   // có thể đã được thay bằng bản đồng bộ trong lúc chờ xác nhận
+  if(ok&&cur){cur.doneVacs[k]=!cur.doneVacs[k];saveLocal();}
 }
 function openExpModal(pid,idx=null){
   const p=pigs.find(x=>x.id===pid);
-  if(p.sellPrice!==null)return;
+  if(!p||p.sellPrice!==null)return;
   currentPigId=pid;currentExpIndex=idx;
   if(idx!==null){
     const e=p.expenses[idx];
@@ -1570,8 +1608,17 @@ function openExpModal(pid,idx=null){
     document.getElementById('expDate').value=today();
   }
   document.getElementById('ac-list').style.display='none';
+  document.getElementById('expDelBtn').style.display=idx!==null?'block':'none';
   document.getElementById('expModal').classList.add('show');
   setTimeout(()=>document.getElementById('expDesc').focus(),300);
+}
+async function deleteExpense(){
+  const p=pigs.find(x=>x.id===currentPigId),e=p&&p.expenses[currentExpIndex];
+  if(!e){closeExpModal();return;}
+  const ok=await showPopup({icon:'🗑️',title:'Xoá khoản chi',msg:`<b>${esc(e.desc)}</b> — ${e.amount.toLocaleString()}đ (${fmtFull(e.date)})<br>Heo: <b>${esc(p.name)}</b>`,okText:'Xoá',okClass:'danger'});
+  if(!ok)return;
+  const i=p.expenses.indexOf(e);if(i>=0)p.expenses.splice(i,1);
+  closeExpModal();saveLocal();toast('Đã xoá khoản chi');
 }
 function closeExpModal(){document.getElementById('expModal').classList.remove('show');document.getElementById('ac-list').style.display='none';}
 async function confirmExpense(){
@@ -1580,14 +1627,15 @@ async function confirmExpense(){
   const amount=parseInt(amtRaw);const date=document.getElementById('expDate').value;
   if(!desc||isNaN(amount)||amount<=0){showAlert('⚠️','Thiếu thông tin','Vui lòng nhập đầy đủ <b>Khoản chi</b> và <b>Số tiền</b> hợp lệ!');return;}
   const p=pigs.find(x=>x.id===currentPigId);
-  if(currentExpIndex!==null)p.expenses[currentExpIndex]={desc,amount,date,edited:true};
+  if(!p){closeExpModal();return showAlert('⚠️','Không tìm thấy heo','Heo này vừa bị xoá hoặc thay đổi (có thể từ máy khác).');}
+  if(currentExpIndex!==null&&p.expenses[currentExpIndex])p.expenses[currentExpIndex]={desc,amount,date,edited:true};
   else p.expenses.push({desc,amount,date,edited:false});
   saveLocal();closeExpModal();
   toast(`✅ Đã lưu: ${desc} — ${amount.toLocaleString()}đ`,'ok');
 }
 function openSellModal(pid){
-  const p=pigs.find(x=>x.id===pid);if(p.sellPrice!==null)return;
-  currentPigId=pid;document.getElementById('sellAmount').value='';
+  const p=pigs.find(x=>x.id===pid);if(!p||p.sellPrice!==null)return;
+  currentPigId=pid;document.getElementById('sellAmount').value=p.prevSell&&p.prevSell.price?p.prevSell.price.toLocaleString('vi-VN'):'';
   document.getElementById('sellModal').classList.add('show');
   setTimeout(()=>document.getElementById('sellAmount').focus(),300);
 }
@@ -1597,10 +1645,11 @@ async function confirmSell(){
   const amount=raw===''?0:parseInt(raw);
   if(isNaN(amount)){showAlert('⚠️','Lỗi','Vui lòng nhập <b>số tiền hợp lệ</b>!');return;}
   const p=pigs.find(x=>x.id===currentPigId);
+  if(!p){closeSellModal();return showAlert('⚠️','Không tìm thấy heo','Heo này vừa bị xoá hoặc thay đổi (có thể từ máy khác).');}
   const totExp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);const profit=amount-totExp;
   const ok=await showPopup({icon:'🏷️',title:'Xác nhận xuất chuồng',msg:`Heo: <b>${esc(p.name)}</b><br>Tổng chi phí: <b>${totExp.toLocaleString()}đ</b><br>Tiền bán: <b>${amount.toLocaleString()}đ</b><br><br>${profit>=0?'<span style="color:#2e7d32;font-weight:700">💰 Lợi nhuận: '+profit.toLocaleString()+'đ</span>':'<span style="color:#d32f2f;font-weight:700">📉 Lỗ vốn: '+Math.abs(profit).toLocaleString()+'đ</span>'}`,okText:'Xác nhận xuất chuồng',okClass:profit<0?'danger':''});
   if(!ok)return;
-  p.sellPrice=amount;p.sellDate=today();saveLocal();closeSellModal();
+  p.sellPrice=amount;p.sellDate=today();delete p.prevSell;saveLocal();closeSellModal();
   toast(`✅ Đã xuất chuồng heo ${p.name}`,'ok');
 }
 async function deletePig(id){
@@ -1608,7 +1657,7 @@ async function deletePig(id){
   const ok=await showPopup({icon:'🗑️',title:'Xoá heo vĩnh viễn',msg:`Xoá <b>${p?esc(p.name):'heo này'}</b> vĩnh viễn?<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục sau khi xoá!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
   if(ok){pigs=pigs.filter(x=>x.id!==id);saveLocal();toast('Đã xoá heo');}
 }
-function exportJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(pigs)],{type:'application/json'}));a.download='DuLieuHeo.json';a.click();toast('Đã xuất file JSON','ok');}
+function exportJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(pigs)],{type:'application/json'}));a.download=`DuLieuHeo_${today()}.json`;a.click();toast(`💾 Đã lưu file sao lưu (${pigs.length} con)`,'ok');}
 function importJSON(e){
   const f=e.target.files[0];e.target.value='';   // cho phép chọn lại cùng file
   if(!f)return;
