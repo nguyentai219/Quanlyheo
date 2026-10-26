@@ -140,10 +140,21 @@ input{
 .gd-sheets-note{background:#f3f8ff;border:1px solid #c2d9ff;border-radius:8px;padding:10px 13px;font-size:13px;color:#1a237e;margin-bottom:10px;line-height:1.6;}
 
 /* ══ APP STYLES ══ */
-.input-box{background:#fff;padding:15px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,.1);margin-bottom:20px;border:2px solid var(--green);}
-h2{font-size:20px;text-align:center;color:var(--green);text-transform:uppercase;margin-top:0;}
-.input-box input{width:100%;padding:13px;margin:8px 0;border:1.5px solid #ddd;border-radius:8px;font-size:16px;display:block;}
-button.add-btn{width:100%;background:#28a745;color:#fff;border:none;padding:16px;border-radius:8px;font-weight:700;font-size:18px;cursor:pointer;}
+/* Thanh thông báo đa nhiệm (trên cùng, xoay vòng) */
+#nbar{position:sticky;top:0;z-index:1500;margin:-10px -10px 12px;padding:calc(env(safe-area-inset-top,0px) + 7px) 12px 7px;background:var(--green);box-shadow:0 2px 8px rgba(0,0,0,.18);display:flex;align-items:center;gap:8px;cursor:pointer;}
+#nbar-ico{font-size:17px;line-height:1;flex-shrink:0;}
+#nbar-clip{flex:1;overflow:hidden;min-width:0;}
+#nbar-txt{display:inline-block;white-space:nowrap;font-size:12.5px;font-weight:700;color:#fff;}
+#nbar-txt.ok{color:#b9f6ca;}
+#nbar-txt.busy{color:#fff59d;}
+#nbar-txt.bad{color:#ffcdd2;}
+#nbar-txt.marq{animation:nbarMarq var(--dur,8s) linear infinite;}
+@keyframes nbarMarq{0%,12%{transform:translateX(0)}88%,100%{transform:translateX(var(--dx,0))}}
+#nbar-dots{display:flex;gap:3px;flex-shrink:0;}
+#nbar-dots i{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.35);}
+#nbar-dots i.on{background:#fff;}
+.add-pig-btn{width:100%;background:#28a745;color:#fff;border:none;padding:13px;border-radius:12px;font-weight:700;font-size:17px;cursor:pointer;box-shadow:0 3px 8px rgba(40,167,69,.3);margin-bottom:16px;}
+.add-pig-btn:active{filter:brightness(.92);}
 .stats-container{margin-bottom:20px;}
 .stats-title{font-size:16px;font-weight:700;color:#555;margin-bottom:8px;text-align:center;}
 .stats-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 5px rgba(0,0,0,.1);}
@@ -203,25 +214,15 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
 </head>
 <body>
 
-<!-- ══ CHỈ BÁO ĐỒNG BỘ NHỎ (thay statusbar cũ) ══ -->
-<div id="sync-indicator" style="
-  display:flex;align-items:center;justify-content:flex-end;
-  padding:4px 6px 0;margin-bottom:4px;
-">
-  <span id="sync-dot" style="
-    font-size:11px;font-weight:700;color:#aaa;
-    display:flex;align-items:center;gap:4px;
-  ">⚪ Chưa kết nối</span>
+<!-- ══ THANH THÔNG BÁO ĐA NHIỆM (bấm → tới khu vực đồng bộ) ══ -->
+<div id="nbar" onclick="document.getElementById('sync-area').scrollIntoView({behavior:'smooth'})">
+  <span id="nbar-ico">⏳</span>
+  <div id="nbar-clip"><span id="nbar-txt">Đang kiểm tra kết nối…</span></div>
+  <div id="nbar-dots"></div>
 </div>
 
 <!-- ══ THÊM HEO ══ -->
-<div class="input-box">
-  <h2>🐷 THÊM HEO MỚI</h2>
-  <input type="text" id="pigName" placeholder="Tên hoặc Số tai (Bắt buộc)" autocomplete="off">
-  <label style="font-weight:700;font-size:16px">Ngày phối giống:</label>
-  <input type="date" id="breedDate">
-  <button class="add-btn" onclick="addPig()">+ TẠO LỊCH QUẢN LÝ</button>
-</div>
+<button class="add-pig-btn" onclick="openAddPigModal()">＋ THÊM HEO MỚI</button>
 
 <div id="statsSection"></div>
 
@@ -232,7 +233,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
 <div id="pigList"></div>
 
 <!-- ══ KHU VỰC CUỐI TRANG ══ -->
-<div style="padding:0 10px 30px">
+<div id="sync-area" style="padding:0 10px 30px;scroll-margin-top:50px">
   <div class="section-divider"><span class="section-divider-text">── GOOGLE DRIVE ──</span></div>
 
   <div class="gdrive-panel">
@@ -303,6 +304,28 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
         </div>
       </div>
       <div id="sb-status" class="sb-status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL THÊM HEO ══ -->
+<div id="addPigModal" class="modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <span class="modal-title">🐷 Thêm heo mới</span>
+      <button class="modal-close" onclick="closeAddPigModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <label>Tên hoặc Số tai (bắt buộc)</label>
+      <input type="text" id="pigName" placeholder="VD: Nái 12, Tai 345…" autocomplete="off"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();addPig();}">
+      <label>Ngày phối giống</label>
+      <input type="date" id="breedDate">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="addPig()">+ TẠO LỊCH QUẢN LÝ</button>
+      <button class="btn-secondary" onclick="closeAddPigModal()">HUỶ</button>
     </div>
   </div>
 </div>
@@ -403,7 +426,7 @@ const STORAGE_KEY='QUANLYHEO_DATA_v4';
 const GD_META_KEY='QUANLYHEO_GDRIVE_META';
 
 let pigs=[],currentPigId=null,currentExpIndex=null,currentRebreedId=null;
-let gdToken=null,gdUser=null,gdSpreadsheetId=null,gdTokenClient=null;
+let gdToken=null,gdUser=null,gdSpreadsheetId=null,gdTokenClient=null,gdLastSync=null,_gdBar={status:'offline',text:'Chưa kết nối'};
 let _toastT=null,_popupResolve=null,_silentRefresh=false;
 
 const COLORS=['#2e7d32','#1565c0','#c62828','#ef6c00','#6a1b9a','#00838f','#4e342e'];
@@ -509,6 +532,7 @@ async function confirmRebreed(){
 function init(){
   document.getElementById('breedDate').value=today();
   loadLocal();
+  nbarTick();
   initSupabase();
   if(typeof google!=='undefined'&&google.accounts) setupGDrive();
   else window.addEventListener('load',()=>setTimeout(setupGDrive,600));
@@ -533,6 +557,7 @@ function setupGDrive(){
     if(meta.user){
       gdUser=meta.user;
       gdSpreadsheetId=meta.ssId||null;
+      gdLastSync=meta.lastSync||null;
       // Hiện UI đã đăng nhập ngay
       renderLoggedIn();
       setSyncDot('busy','Đang kết nối…');
@@ -650,7 +675,7 @@ async function gdSignOut(){
 
 function saveMeta(){
   // Không lưu token (hết hạn sau 1h) — chỉ lưu user + spreadsheetId
-  localStorage.setItem(GD_META_KEY,JSON.stringify({user:gdUser,ssId:gdSpreadsheetId}));
+  localStorage.setItem(GD_META_KEY,JSON.stringify({user:gdUser,ssId:gdSpreadsheetId,lastSync:gdLastSync}));
 }
 
 let _refreshTimer=null;
@@ -748,6 +773,7 @@ function showEl(id){const e=document.getElementById(id);if(e)e.style.display='bl
 function hideEl(id){const e=document.getElementById(id);if(e)e.style.display='none';}
 
 function setSyncDot(status,text){
+  _gdBar={status,text};nbarRender('gd');
   const el=document.getElementById('sync-dot');if(!el)return;
   const c={offline:'#c62828',online:'#2e7d32',busy:'#1565c0'};
   const d={offline:'🔴',online:'🟢',busy:'🔄'};
@@ -795,13 +821,21 @@ const SB_ANON_KEY='sb_publishable_spBqsFpBZdC8nKe0WIEqeg_CMyQWnxO';
 const SB_TABLE='quanlyheo_data';
 const SB_META_KEY='QUANLYHEO_SB_META_V2';
 // Project Supabase RIÊNG của app heo (Singapore) — không dùng chung với app Mủ Cao Su
-let _sbLoadTries=0,sbClient=null,sbUser=null,_sbTimer=null,_sbBusy=false,_sbAgain=false;
+let _sbBar='',_sbBarMsg='',_sbLoadTries=0,sbClient=null,sbUser=null,_sbTimer=null,_sbBusy=false,_sbAgain=false;
 
 function sbMeta(){try{return JSON.parse(localStorage.getItem(SB_META_KEY))||{};}catch(e){return{};}}
 function sbSetMeta(m){localStorage.setItem(SB_META_KEY,JSON.stringify({...sbMeta(),...m}));}
-function sbStatus(t){const el=document.getElementById('sb-status');if(el)el.textContent=t||'';}
+function sbStatus(t){
+  const el=document.getElementById('sb-status');if(el)el.textContent=t||'';
+  t=t||'';
+  _sbBar=/^✅|^📥/.test(t)?'ok':/^⚠️/.test(t)?'error':/^Đang/.test(t)?'busy':'';
+  _sbBarMsg=t.replace(/^⚠️\s*/,'');
+  if(_sbBar==='ok')sbSetMeta({lastAt:Date.now()});
+  nbarRender('sb');
+}
 function sbBtns(d){['sb-btn-in','sb-btn-up','sb-btn-push','sb-btn-pull'].forEach(id=>{const e=document.getElementById(id);if(e)e.disabled=d;});}
 function sbRenderUI(){
+  nbarRender('sb');
   document.getElementById('sb-loggedout').style.display=sbUser?'none':'block';
   document.getElementById('sb-loggedin').style.display=sbUser?'block':'none';
   if(sbUser)document.getElementById('sb-user-email').textContent='👤 '+sbUser.email;
@@ -956,6 +990,68 @@ async function sbPullManual(){
   sbBtns(false);
 }
 
+/* ══ THANH THÔNG BÁO ĐA NHIỆM ══
+   Xoay vòng các dòng: mạng, Supabase, Google Drive. Trạng thái nào vừa đổi thì hiện ngay dòng đó. */
+let _nbarIdx=0,_nbarTimer=null;
+function fmtSyncTime(ms){
+  if(!ms)return'';
+  const d=new Date(ms);
+  return d.toLocaleTimeString('vi-VN')+(ymd(d)===today()?' hôm nay':' ngày '+String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0'));
+}
+function nbarSlides(){
+  const out=[],online=navigator.onLine;
+  if(!online)out.push({k:'net',ico:'📴',cls:'bad',t:'Không có mạng — dữ liệu vẫn lưu trên máy, sẽ tự đồng bộ khi có mạng lại'});
+  if(sbUser){
+    const m=sbMeta(),em=sbUser.email,last=fmtSyncTime(m.lastAt),pend=m.dirty?' · có thay đổi chờ đồng bộ':'';
+    if(!online)out.push({k:'sb',ico:'⚡',cls:'bad',t:`Mất kết nối Supabase ${em}${last?' — đồng bộ gần nhất '+last:''}${pend}`});
+    else if(_sbBar==='busy')out.push({k:'sb',ico:'⚡',cls:'busy',t:`${_sbBarMsg} Supabase ${em}`});
+    else if(_sbBar==='error')out.push({k:'sb',ico:'⚡',cls:'bad',t:`Lỗi đồng bộ Supabase ${em}: ${_sbBarMsg}`});
+    else out.push({k:'sb',ico:'⚡',cls:'ok',t:`Supabase ${em} đã kết nối — đồng bộ ${last?'lúc '+last:'…'}${pend}`});
+  }
+  if(gdUser){
+    const em=gdUser.email||'Google',last=fmtSyncTime(gdLastSync),st=_gdBar.status;
+    if(st==='busy')out.push({k:'gd',ico:'☁️',cls:'busy',t:`${_gdBar.text} Google Drive ${em}`});
+    else if(st==='offline'||!gdToken)out.push({k:'gd',ico:'☁️',cls:'bad',t:`Mất kết nối Google Drive ${em} (${_gdBar.text})${last?' — đồng bộ gần nhất '+last:''}`});
+    else out.push({k:'gd',ico:'☁️',cls:'ok',t:`Google Drive ${em} đã kết nối — đồng bộ ${last?'lúc '+last:'…'}`});
+  }
+  if(!sbUser&&!gdUser){
+    const checking=online&&!sbClient&&_sbLoadTries<=30;
+    out.push(checking?{k:'sb',ico:'⏳',cls:'busy',t:'Đang kiểm tra kết nối…'}
+      :{k:'sb',ico:'⚠️',cls:'bad',t:'Chưa kết nối đồng bộ — dữ liệu chỉ lưu trên máy này. Bấm vào đây để đăng nhập Supabase / Google Drive'});
+  }
+  return out;
+}
+function nbarShow(slides){
+  const sl=slides[_nbarIdx]||slides[0];
+  const txt=document.getElementById('nbar-txt'),clip=document.getElementById('nbar-clip');
+  document.getElementById('nbar-ico').textContent=sl.ico;
+  txt.textContent=sl.t;txt.className=sl.cls;
+  document.getElementById('nbar-dots').innerHTML=slides.length>1?slides.map((_,i)=>`<i class="${i===_nbarIdx?'on':''}"></i>`).join(''):'';
+  // Dòng dài hơn khung → chữ chạy sang trái rồi quay lại
+  const over=txt.scrollWidth-clip.clientWidth;
+  if(over<=4)return 5000;
+  const dur=Math.max(6,over/35+3);
+  txt.style.setProperty('--dx',(-over-8)+'px');txt.style.setProperty('--dur',dur+'s');
+  txt.classList.add('marq');
+  return dur*1000;
+}
+function nbarTick(){
+  clearTimeout(_nbarTimer);
+  const slides=nbarSlides();
+  if(_nbarIdx>=slides.length)_nbarIdx=0;
+  const stay=nbarShow(slides);
+  _nbarTimer=setTimeout(()=>{_nbarIdx++;nbarTick();},stay);
+}
+/* Trạng thái 1 mục vừa đổi → hiện ngay dòng của mục đó */
+function nbarRender(key){
+  if(!document.getElementById('nbar-txt'))return;
+  const i=nbarSlides().findIndex(s=>s.k===key);
+  if(i>=0)_nbarIdx=i;
+  nbarTick();
+}
+window.addEventListener('online',()=>nbarRender('sb'));
+window.addEventListener('offline',()=>nbarRender('net'));
+
 /* ══ APP CORE ══ */
 function loadLocal(){const d=localStorage.getItem(STORAGE_KEY);if(d){try{pigs=normalizePigs(JSON.parse(d))||[];}catch(e){pigs=[];}}render();}
 
@@ -1035,6 +1131,7 @@ async function gdBackupSilent(){
   await gFetch(`https://sheets.googleapis.com/v4/spreadsheets/${ssId}:batchUpdate`,{method:'POST',body:JSON.stringify({requests:fmtReqs})});
   // Cập nhật fileInfo
   fileInfo(`✅ Đã đồng bộ lúc ${ts}`,ssId);
+  gdLastSync=Date.now();saveMeta();nbarRender('gd');
 }
 
 /* Hiện trạng thái đồng bộ nhỏ trên statusbar */
@@ -1074,6 +1171,13 @@ function renderStats(){
     </div>`;
 }
 
+function openAddPigModal(){
+  document.getElementById('pigName').value='';
+  document.getElementById('breedDate').value=today();
+  document.getElementById('addPigModal').classList.add('show');
+  setTimeout(()=>document.getElementById('pigName').focus(),300);
+}
+function closeAddPigModal(){document.getElementById('addPigModal').classList.remove('show');}
 function addPig(){
   const n=document.getElementById('pigName').value.trim();
   const d=document.getElementById('breedDate').value;
@@ -1089,6 +1193,7 @@ function addPig(){
     dateAdded:today()       // ← Ngày thêm thay cho ID
   });
   document.getElementById('pigName').value='';
+  closeAddPigModal();
   saveLocal();
   toast('✅ Đã thêm heo: '+n,'ok');
 }
