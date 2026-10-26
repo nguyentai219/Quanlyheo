@@ -192,6 +192,8 @@ input{
 #nbar-dots i.on{background:#fff;}
 .add-pig-btn{width:100%;background:#28a745;color:#fff;border:none;padding:13px;border-radius:12px;font-weight:700;font-size:17px;cursor:pointer;box-shadow:0 3px 8px rgba(40,167,69,.3);margin-bottom:16px;}
 .add-pig-btn:active{filter:brightness(.92);}
+.trash-btn{width:100%;margin:6px 0 24px;padding:13px;border:1.5px dashed #bbb;border-radius:12px;background:#fafafa;color:#666;font-size:15px;font-weight:700;cursor:pointer;}
+#trash-body .pig-card{margin-bottom:10px;}
 .stats-container{margin-bottom:20px;}
 .stats-title{font-size:16px;font-weight:700;color:#555;margin-bottom:8px;text-align:center;}
 .stats-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 5px rgba(0,0,0,.1);}
@@ -268,6 +270,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
   <div class="list-sub-note">Heo gần đẻ nhất hiển thị trên cùng.<br>Heo đã xuất chuồng hiển thị cuối cùng.</div>
 </div>
 <div id="pigList"></div>
+<div id="trashArea"></div>
 
 <!-- ══ TRANG KẾT NỐI & ĐỒNG BỘ (nhấp đúp thanh thông báo để mở) ══ -->
 <div id="syncModal" class="modal" onclick="if(event.target===this)closeSyncModal()">
@@ -326,6 +329,19 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
         <div id="gd-opts" style="margin-top:10px"></div>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ══ HEO ĐÃ XOÁ ══ -->
+<div id="trashModal" class="modal" onclick="if(event.target===this)closeTrash()">
+  <div class="modal-sheet sync-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-header">
+      <button class="modal-close" id="trash-back" onclick="_trashUid=null;trashRender()" style="display:none">‹</button>
+      <span class="modal-title" id="trash-title" style="flex:1">🗑️ Heo đã xoá</span>
+      <button class="modal-close" onclick="closeTrash()">✕</button>
+    </div>
+    <div class="modal-body" id="trash-body"></div>
   </div>
 </div>
 
@@ -1442,7 +1458,7 @@ function cnFilterUI(){
   if(f==='month'&&!document.getElementById('cn-fm').value)document.getElementById('cn-fm').value=today().slice(0,7);
 }
 function cnFiltered(){
-  const list=(_cnRow&&_cnRow.pigs)||[];
+  const list=((_cnRow&&_cnRow.pigs)||[]).filter(p=>!p.trashed);
   const f=(document.getElementById('cn-f')||{}).value||'all';
   const mo=(document.getElementById('cn-fm')||{}).value||'',q=((document.getElementById('cn-fn')||{}).value||'').trim().toLowerCase();
   return list.filter(p=>{
@@ -1520,7 +1536,7 @@ function cnStoreRender(){
     <div class="cn-row"><span>🕐 Cập nhật lúc</span><b>${new Date(_cnRow.updated_at).toLocaleString('vi-VN')}</b></div>
     <div class="cn-note" style="text-align:left;margin-top:10px">Chọn heo muốn xoá — sẽ xoá <b>cả trên máy này và trên Supabase</b> (nếu chỉ xoá trên Supabase, lần đồng bộ sau máy sẽ đẩy lên lại).</div>
     <div style="display:flex;gap:6px;margin-bottom:6px"><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('sold')">Chọn heo đã xuất</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('all')">Chọn tất cả</button><button class="cn-btn sec" style="margin:0;padding:9px;font-size:13px" onclick="cnSelect('none')">Bỏ chọn</button></div>
-    <div style="max-height:40vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-bottom:10px">${list.length?[...list].sort((a,b)=>cnSize([b])-cnSize([a])).map(p=>`<label class="cn-pig"><input type="checkbox" class="cn-chk" value="${p.uid}" data-sold="${p.sellPrice!==null?1:0}"><span class="nm">🐷 ${esc(p.name)}<small>${p.sellPrice!==null?'🏷️ Đã xuất '+fmtFull(p.sellDate):'Đang nuôi · dự sinh '+fmtFull(p.dueDate)} · ${p.expenses.length} khoản chi</small></span><b style="font-size:12px;color:#666">${fmtSize(cnSize([p]))}</b></label>`).join(''):'<div class="cn-note">Trống</div>'}</div>
+    <div style="max-height:40vh;overflow:auto;border:1px solid #eee;border-radius:10px;margin-bottom:10px">${list.length?[...list].sort((a,b)=>cnSize([b])-cnSize([a])).map(p=>`<label class="cn-pig"><input type="checkbox" class="cn-chk" value="${p.uid}" data-sold="${p.sellPrice!==null?1:0}"><span class="nm">🐷 ${esc(p.name)}<small>${p.trashed?'🗑️ Trong Heo đã xoá · ':''}${p.sellPrice!==null?'🏷️ Đã xuất '+fmtFull(p.sellDate):'Đang nuôi · dự sinh '+fmtFull(p.dueDate)} · ${p.expenses.length} khoản chi</small></span><b style="font-size:12px;color:#666">${fmtSize(cnSize([p]))}</b></label>`).join(''):'<div class="cn-note">Trống</div>'}</div>
     <button class="cn-btn red" onclick="cnDeleteSelected()">🗑️ Xoá các heo đã chọn</button>
     <button class="cn-btn red" onclick="cnDeleteCloud()">⚠️ Xoá toàn bộ dữ liệu trên Supabase</button>`;
 }
@@ -1685,17 +1701,18 @@ async function gdBackupSilent(){
     ssId=c.spreadsheetId;gdSpreadsheetId=ssId;saveMeta();
   }
   const ts=new Date().toLocaleString('vi-VN');
-  const active=pigs.filter(p=>p.sellPrice===null),sold=pigs.filter(p=>p.sellPrice!==null);
+  const live=pigs.filter(p=>!p.trashed);
+  const active=live.filter(p=>p.sellPrice===null),sold=live.filter(p=>p.sellPrice!==null);
   const totExp=active.reduce((s,p)=>s+(p.expenses||[]).reduce((x,e)=>x+e.amount,0),0);
   const totRev=sold.reduce((s,p)=>s+p.sellPrice,0),totCS=sold.reduce((s,p)=>s+(p.expenses||[]).reduce((x,e)=>x+e.amount,0),0);
   const ovRows=[['🐷 QUẢN LÝ HEO — BẢN TỔNG QUAN','','',''],['Cập nhật lúc:',ts,'',''],['','','',''],['CHỈ SỐ','GIÁ TRỊ','',''],['Tổng heo đang nuôi',active.length,'',''],['Tổng chi (đang nuôi)',totExp,'',''],['Tổng heo đã xuất',sold.length,'',''],['Tổng doanh thu',totRev,'',''],['Tổng chi (đã xuất)',totCS,'',''],['Lợi nhuận ròng',totRev-totCS,'',''],['','','',''],['HEO GẦN ĐẺ NHẤT','NGÀY DỰ KIẾN','SỐ NGÀY CÒN','TRẠNG THÁI']];
   [...active].sort((a,b)=>new Date(a.dueDate)-new Date(b.dueDate)).slice(0,10).forEach(p=>{const dl=daysFromToday(p.dueDate);ovRows.push([p.name,fmtFull(p.dueDate),dl>0?dl:dl===0?'Hôm nay':'Quá ngày',p.actualBirth?'Đã sinh':'Chờ sinh']);});
   const detRows=[['NGÀY THÊM','TÊN HEO','NGÀY PHỐI','LẦN PHỐI','DỰ KIẾN ĐẺ','SINH THỰC TẾ','TỔNG CHI','GIÁ BÁN','LỢI NHUẬN','TRẠNG THÁI']];
-  pigs.forEach(p=>{const exp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);detRows.push([p.dateAdded||'',p.name,fmtFull(p.breedDate),p.breedCount||1,fmtFull(p.dueDate),p.actualBirth?fmtFull(p.actualBirth):'Chưa sinh',exp,p.sellPrice!==null?p.sellPrice:'Chưa bán',p.sellPrice!==null?p.sellPrice-exp:'',p.sellPrice!==null?'Đã xuất':'Đang nuôi']);});
+  live.forEach(p=>{const exp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);detRows.push([p.dateAdded||'',p.name,fmtFull(p.breedDate),p.breedCount||1,fmtFull(p.dueDate),p.actualBirth?fmtFull(p.actualBirth):'Chưa sinh',exp,p.sellPrice!==null?p.sellPrice:'Chưa bán',p.sellPrice!==null?p.sellPrice-exp:'',p.sellPrice!==null?'Đã xuất':'Đang nuôi']);});
   const vacRows=[['NGÀY THÊM','TÊN','LOẠI','VẮC XIN','NGÀY TIÊM','GIAI ĐOẠN','TRẠNG THÁI']];
-  pigs.forEach(p=>{M_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo mẹ',v.n,fmtFull(vacDate(p,v,true)),v.m,p.doneVacs['M_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});B_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo con',v.n,fmtFull(vacDate(p,v,false)),v.m,p.doneVacs['B_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});});
+  live.forEach(p=>{M_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo mẹ',v.n,fmtFull(vacDate(p,v,true)),v.m,p.doneVacs['M_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});B_VACS.forEach(v=>{vacRows.push([p.dateAdded||'',p.name,'Heo con',v.n,fmtFull(vacDate(p,v,false)),v.m,p.doneVacs['B_'+v.n]?'✅ Đã tiêm':'Chưa tiêm']);});});
   const expRows=[['NGÀY THÊM','TÊN','NGÀY CHI','KHOẢN CHI','SỐ TIỀN','SỬA']];
-  pigs.forEach(p=>(p.expenses||[]).forEach(e=>expRows.push([p.dateAdded||'',p.name,fmtFull(e.date),e.desc,e.amount,e.edited?'Có':''])));
+  live.forEach(p=>(p.expenses||[]).forEach(e=>expRows.push([p.dateAdded||'',p.name,fmtFull(e.date),e.desc,e.amount,e.edited?'Có':''])));
   if(expRows.length===1)expRows.push(['(Chưa có)','','','','','']);
   const sellRows=[['NGÀY THÊM','TÊN','NGÀY PHỐI','NGÀY XUẤT','TỔNG CHI','GIÁ BÁN','LỢI NHUẬN','KẾT QUẢ']];
   sold.forEach(p=>{const exp=(p.expenses||[]).reduce((s,e)=>s+e.amount,0);sellRows.push([p.dateAdded||'',p.name,fmtFull(p.breedDate),fmtFull(p.sellDate),exp,p.sellPrice,p.sellPrice-exp,p.sellPrice-exp>=0?'Có lãi':'Lỗ vốn']);});
@@ -1736,7 +1753,7 @@ window.addEventListener('offline',()=>{if(gdToken)setSyncStatus('pending');});
 
 
 function renderStats(){
-  const act=pigs.filter(p=>p.sellPrice===null);
+  const act=pigs.filter(p=>p.sellPrice===null&&!p.trashed);
   const tot=act.reduce((s,p)=>s+(p.expenses||[]).reduce((x,e)=>x+e.amount,0),0);
   document.getElementById('statsSection').innerHTML=`
     <div class="stats-container">
@@ -1858,9 +1875,70 @@ async function confirmSell(){
   toast(`✅ Đã xuất chuồng heo ${p.name}`,'ok');
 }
 async function deletePig(id){
-  const p=pigs.find(x=>x.id===id);
-  const ok=await showPopup({icon:'🗑️',title:'Xoá heo vĩnh viễn',msg:`Xoá <b>${p?esc(p.name):'heo này'}</b> vĩnh viễn?<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục sau khi xoá!</span>`,okText:'Xoá vĩnh viễn',okClass:'danger'});
-  if(ok){pigs=pigs.filter(x=>x.id!==id);saveLocal();toast('Đã xoá heo');}
+  const p=pigs.find(x=>x.id===id);if(!p)return;
+  const ok=await showPopup({icon:'🗑️',title:'Xoá heo',msg:`Chuyển <b>${esc(p.name)}</b> vào mục <b>Heo đã xoá</b>?<br><span style="color:#666;font-size:14px">Có thể khôi phục lại bất cứ lúc nào ở cuối trang.</span>`,okText:'Xoá',okClass:'danger'});
+  const cur=pigs.find(x=>x.uid===p.uid);
+  if(ok&&cur){cur.trashed=Date.now();saveLocal();toast('🗑️ Đã chuyển vào Heo đã xoá');}
+}
+
+/* ══ HEO ĐÃ XOÁ (thùng rác) ══ */
+let _trashUid=null;
+function trashList(){return pigs.filter(p=>p.trashed).sort((a,b)=>b.trashed-a.trashed);}
+function renderTrashBtn(){
+  const el=document.getElementById('trashArea');if(!el)return;
+  const n=trashList().length;
+  el.innerHTML=n?`<button class="trash-btn" onclick="openTrash()">🗑️ Heo đã xoá (${n})</button>`:'';
+  if(document.getElementById('trashModal').classList.contains('show'))trashRender();
+}
+function openTrash(){_trashUid=null;trashRender();document.getElementById('trashModal').classList.add('show');}
+function closeTrash(){document.getElementById('trashModal').classList.remove('show');_trashUid=null;}
+function fmtTime(ms){const d=new Date(ms);return d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'})+' '+fmtFull(ymd(d));}
+function trashRender(){
+  const box=document.getElementById('trash-body'),title=document.getElementById('trash-title'),back=document.getElementById('trash-back');
+  const p=_trashUid&&pigs.find(x=>x.uid===_trashUid&&x.trashed);
+  if(_trashUid&&!p)_trashUid=null;          // vừa được khôi phục / xoá hẳn (kể cả từ máy khác)
+  back.style.display=p?'block':'none';
+  if(p){
+    title.textContent='🐷 '+p.name;
+    const now=new Date();now.setHours(0,0,0,0);
+    box.innerHTML=`<div class="cn-note" style="font-size:13px;margin-top:0">Đã xoá lúc <b>${fmtTime(p.trashed)}</b></div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="cn-btn pri" style="margin:0" onclick="trashRestore('${p.uid}')">♻️ Khôi phục</button>
+        <button class="cn-btn red" style="margin:0" onclick="trashPurge('${p.uid}')">❌ Xoá hẳn</button>
+      </div>`+pigCardHTML(p,now,true);
+    return;
+  }
+  title.textContent='🗑️ Heo đã xoá';
+  const list=trashList();
+  box.innerHTML=list.length?`<div class="cn-note" style="margin-top:0">Chạm vào 1 con để xem lại đầy đủ chi tiết, khôi phục hoặc xoá hẳn.</div>`
+    +list.map(p=>{const exp=p.expenses.reduce((s,e)=>s+e.amount,0);
+      return `<div class="cn-opt" onclick="_trashUid='${p.uid}';trashRender();document.querySelector('#trashModal .modal-sheet').scrollTop=0">
+        <span class="cn-ico">🐷</span><div class="cn-txt">${esc(p.name)}<div class="cn-sub">Phối ${fmtFull(p.breedDate)} · ${p.sellPrice!==null?'đã xuất chuồng':'đang nuôi'} · chi ${exp.toLocaleString()}đ<br>Xoá lúc ${fmtTime(p.trashed)}</div></div><span style="color:#aaa;font-size:20px">›</span></div>`;}).join('')
+    +(list.length>1?`<button class="cn-btn red" style="margin-top:8px" onclick="trashPurgeAll()">❌ Xoá hẳn tất cả (${list.length} con)</button>`:'')
+    :'<div class="cn-note">Không có heo nào đã xoá.</div>';
+}
+function trashRestore(uid){
+  const p=pigs.find(x=>x.uid===uid);if(!p)return;
+  delete p.trashed;saveLocal();
+  toast('♻️ Đã khôi phục '+p.name,'ok');
+  _trashUid=null;trashRender();
+  if(!trashList().length)closeTrash();
+}
+async function trashPurge(uid){
+  const p=pigs.find(x=>x.uid===uid);if(!p)return;
+  const ok=await showPopup({icon:'❌',title:'Xoá hẳn',msg:`Xoá <b>${esc(p.name)}</b> vĩnh viễn — mất toàn bộ lịch tiêm, chi phí, xuất chuồng của con này, <b>kể cả trên đám mây và các máy khác</b>.<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục!</span>`,okText:'Xoá hẳn',okClass:'danger'});
+  if(!ok)return;
+  pigs=pigs.filter(x=>x.uid!==uid);saveLocal();   // xoá khỏi danh sách → ghi dấu xoá để máy khác xoá theo
+  toast('Đã xoá hẳn '+p.name);
+  _trashUid=null;trashRender();
+  if(!trashList().length)closeTrash();
+}
+async function trashPurgeAll(){
+  const n=trashList().length;
+  const ok=await showPopup({icon:'❌',title:'Xoá hẳn tất cả',msg:`Xoá vĩnh viễn <b>${n} con</b> trong mục Heo đã xoá, kể cả trên đám mây và các máy khác?<br><span style="color:#d32f2f;font-size:14px">Không thể khôi phục!</span>`,okText:'Xoá hẳn tất cả',okClass:'danger'});
+  if(!ok)return;
+  pigs=pigs.filter(x=>!x.trashed);saveLocal();
+  toast('Đã xoá hẳn '+n+' con');closeTrash();
 }
 function exportJSON(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(pigs)],{type:'application/json'}));a.download=`DuLieuHeo_${today()}.json`;a.click();toast(`💾 Đã lưu file sao lưu (${pigs.length} con)`,'ok');}
 function importJSON(e){
@@ -1934,18 +2012,24 @@ function render(){
   renderStats();
   const list=document.getElementById('pigList');list.innerHTML='';
   const now=new Date();now.setHours(0,0,0,0);
-  const sorted=[...pigs].sort((a,b)=>{
+  const sorted=pigs.filter(p=>!p.trashed).sort((a,b)=>{
     if(a.sellPrice!==null&&b.sellPrice===null)return 1;
     if(a.sellPrice===null&&b.sellPrice!==null)return -1;
     if(a.sellPrice!==null&&b.sellPrice!==null)return new Date(a.sellDate)-new Date(b.sellDate);
     return new Date(a.dueDate)-new Date(b.dueDate);
   });
-  sorted.forEach(pig=>{
+  sorted.forEach(pig=>{list.innerHTML+=pigCardHTML(pig,now,false);});
+  renderTrashBtn();
+}
+
+/* Thẻ 1 con heo. ro=true: chỉ xem (heo đã xoá) — tắt mọi thao tác sửa */
+function pigCardHTML(pig,now,ro){
     const exps=pig.expenses||[];
     const totExp=exps.reduce((s,e)=>s+e.amount,0);
     const cc=pig.color||'#333';
     const profit=pig.sellPrice!==null?pig.sellPrice-totExp:0;
     const isSold=pig.sellPrice!==null;
+    const lock=isSold||ro;
     const stamp=isSold?`<div class="sold-stamp-container"><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div><div class="sold-stamp">ĐÃ XUẤT<br>CHUỒNG</div></div>`:'';
     const dl=daysFromToday(pig.dueDate);
     const cdHTML=(!isSold&&!pig.actualBirth)?`<span class="countdown">${dl>0?'còn '+dl+' ngày':dl===0?'hôm nay':'quá '+(-dl)+' ngày'}</span>`:'';
@@ -1956,7 +2040,7 @@ function render(){
     const breedBadge=breedCount>1?`<span class="breed-count-badge">lần ${breedCount}</span>`:'';
     const dateAddedStr=pig.dateAdded?fmtFull(pig.dateAdded):'—';
 
-    list.innerHTML+=`
+    return`
     <div class="pig-card" id="card-${pig.id}" style="border-color:${isSold?'#999':cc}">
       ${stamp}
       <div class="pig-header" style="background:${isSold?'#999':cc}">
@@ -1964,7 +2048,7 @@ function render(){
           <div class="pig-name-title">🐷 ${esc(pig.name)}</div>
           <div style="font-size:12px;opacity:.85">Ngày thêm: ${dateAddedStr}</div>
         </div>
-        ${isSold?`<div class="lock-container" ondblclick="toggleLock(${pig.id})"><span class="lock-status">Đã Khoá — Nhấp đúp để mở</span></div>`:''}
+        ${isSold&&!ro?`<div class="lock-container" ondblclick="toggleLock(${pig.id})"><span class="lock-status">Đã Khoá — Nhấp đúp để mở</span></div>`:''}
       </div>
       <div class="pig-body">
         <div class="pig-info-sub">
@@ -1972,34 +2056,34 @@ function render(){
             <div style="font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:2px;padding-left:2px;">Ngày phối</div>
             <div style="display:flex;align-items:center;gap:0;overflow:hidden;border-radius:8px;border:1.5px solid #a5d6a7;background:#e8f5e9;">
               <!-- Ngày phối cố định bên trái -->
-              <div style="flex-shrink:0;padding:7px 10px;font-size:15px;font-weight:700;color:#2e7d32;white-space:nowrap;border-right:1.5px solid #a5d6a7;background:#c8e6c9;" ${!isSold?`ondblclick="openRebreedModal(${pig.id})"`:''}>
+              <div style="flex-shrink:0;padding:7px 10px;font-size:15px;font-weight:700;color:#2e7d32;white-space:nowrap;border-right:1.5px solid #a5d6a7;background:#c8e6c9;" ${!lock?`ondblclick="openRebreedModal(${pig.id})"`:''}>
                 📅 ${fmtFull(pig.breedDate)}${breedBadge}
               </div>
               <!-- Hint chạy marquee bên phải -->
-              ${!isSold?`
+              ${!lock?`
               <div style="flex:1;overflow:hidden;padding:7px 8px;cursor:pointer;" ondblclick="openRebreedModal(${pig.id})">
                 <div style="white-space:nowrap;display:inline-block;animation:marquee 8s linear infinite;font-size:12px;color:#558b2f;font-style:italic;">
                   ✏️ Nhấp đúp để chọn lại ngày phối &nbsp;&nbsp;&nbsp;&nbsp; ✏️ Nhấp đúp để chọn lại ngày phối
                 </div>
-              </div>`:`<div style="flex:1;padding:7px 8px;font-size:12px;color:#aaa;font-style:italic;">Đã khoá</div>`}
+              </div>`:`<div style="flex:1;padding:7px 8px;font-size:12px;color:#aaa;font-style:italic;">${ro?'Đã xoá':'Đã khoá'}</div>`}
             </div>
           </div>
           ${!pig.actualBirth?`<div>Dự kiến sinh: <b style="color:${isSold?'#666':cc}">${fmtFull(pig.dueDate)}</b>${cdHTML}</div>`:''}
-          ${pig.actualBirth?`<div style="color:#2e7d32;font-weight:700" ondblclick="document.getElementById('hi_${pig.id}').showPicker()">✓ Ngày sinh thực tế: ${fmtFull(pig.actualBirth)}</div>`:''}
+          ${pig.actualBirth?`<div style="color:#2e7d32;font-weight:700" ${!ro?`ondblclick="document.getElementById('hi_${pig.id}').showPicker()"`:''}>✓ Ngày sinh thực tế: ${fmtFull(pig.actualBirth)}</div>`:''}
           ${bd}
-          ${!isSold&&!pig.actualBirth?`<div style="color:#0d47a1;font-weight:700;text-decoration:underline;cursor:pointer;font-size:14px;margin-top:10px" ondblclick="document.getElementById('hi_${pig.id}').showPicker()">➔ Nhấp đúp chọn ngày sinh thực tế</div>`:''}
-          <input type="date" id="hi_${pig.id}" class="hidden-date-input" value="${pig.actualBirth||pig.dueDate}" onchange="updateBirthDate(${pig.id},this.value)">
+          ${!lock&&!pig.actualBirth?`<div style="color:#0d47a1;font-weight:700;text-decoration:underline;cursor:pointer;font-size:14px;margin-top:10px" ondblclick="document.getElementById('hi_${pig.id}').showPicker()">➔ Nhấp đúp chọn ngày sinh thực tế</div>`:''}
+          ${!ro?`<input type="date" id="hi_${pig.id}" class="hidden-date-input" value="${pig.actualBirth||pig.dueDate}" onchange="updateBirthDate(${pig.id},this.value)">`:''}
         </div>
         <div class="blue-box-style">
           <div class="table-container">
-            <div class="table-header-flex"><span class="table-label">LỊCH TIÊM MẸ</span><span class="instruction-note">(Nhấp 2 lần để xác nhận)</span></div>
-            ${renderTable(pig,M_VACS,true,now,isSold)}
+            <div class="table-header-flex"><span class="table-label">LỊCH TIÊM MẸ</span>${!lock?'<span class="instruction-note">(Nhấp 2 lần để xác nhận)</span>':''}</div>
+            ${renderTable(pig,M_VACS,true,now,lock)}
           </div>
         </div>
         <div class="blue-box-style">
           <div class="table-container">
-            <div class="table-header-flex"><span class="table-label">LỊCH TIÊM CON</span><span class="instruction-note">(Nhấp 2 lần để xác nhận)</span></div>
-            ${renderTable(pig,B_VACS,false,now,isSold)}
+            <div class="table-header-flex"><span class="table-label">LỊCH TIÊM CON</span>${!lock?'<span class="instruction-note">(Nhấp 2 lần để xác nhận)</span>':''}</div>
+            ${renderTable(pig,B_VACS,false,now,lock)}
           </div>
         </div>
         <div class="blue-box-style">
@@ -2010,9 +2094,9 @@ function render(){
           </div>
           <table>
             ${exps.length>0?`<tr><th>Khoản chi</th><th style="width:56px">Ngày</th><th style="width:96px;text-align:right">Tiền</th></tr>`:''}
-            ${exps.map((e,i)=>`<tr class="${e.edited?'edited-row':''}" ${!isSold?`ondblclick="openExpModal(${pig.id},${i})"`:''}><td>${esc(e.desc)}</td><td>${fmtDate(e.date)}</td><td style="text-align:right">${e.amount.toLocaleString()}đ</td></tr>`).join('')}
+            ${exps.map((e,i)=>`<tr class="${e.edited?'edited-row':''}" ${!lock?`ondblclick="openExpModal(${pig.id},${i})"`:''}><td>${esc(e.desc)}</td><td>${fmtDate(e.date)}</td><td style="text-align:right">${e.amount.toLocaleString()}đ</td></tr>`).join('')}
           </table>
-          ${!isSold?`<button class="add-exp-btn" onclick="openExpModal(${pig.id})">+ Thêm chi phí</button>`:''}
+          ${!lock?`<button class="add-exp-btn" onclick="openExpModal(${pig.id})">+ Thêm chi phí</button>`:''}
         </div>
         <div class="blue-box-style" style="border-color:#ef9a9a;background:#fff8f8;">
           <div style="font-weight:700;color:#c62828;font-size:17px;margin-bottom:8px">🏷️ XUẤT CHUỒNG</div>
@@ -2023,12 +2107,11 @@ function render(){
               <div>Tổng tiền bán: <b>${pig.sellPrice.toLocaleString()}đ</b></div>
               <div class="${profit>=0?'profit':'loss'}">${profit>=0?'➔ Lợi nhuận: '+profit.toLocaleString()+'đ':'➔ Lỗ vốn: '+Math.abs(profit).toLocaleString()+'đ'}</div>
             </div>`:'<div style="font-size:15px;color:#888">Chưa cập nhật dữ liệu bán heo.</div>'}
-          ${!isSold?`<button class="sell-btn" onclick="openSellModal(${pig.id})">XUẤT CHUỒNG</button>`:''}
+          ${!lock?`<button class="sell-btn" onclick="openSellModal(${pig.id})">XUẤT CHUỒNG</button>`:''}
         </div>
       </div>
-      <button class="del-btn" ondblclick="deletePig(${pig.id})">Nhấp đúp để xoá vĩnh viễn heo này</button>
+      ${!ro?`<button class="del-btn" ondblclick="deletePig(${pig.id})">Nhấp đúp để xoá heo này (chuyển vào mục Heo đã xoá)</button>`:''}
     </div>`;
-  });
 }
 
 function renderTable(pig,vacs,isMum,now,isSold){
