@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Quản Lý Heo Nái v1.6.1</title>
+<title>Quản Lý Heo Nái v1.6.2</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2e7d32">
 <meta name="mobile-web-app-capable" content="yes">
@@ -268,7 +268,7 @@ td{padding:14px 6px;border-bottom:1px solid var(--border);line-height:1.4;}
     <div class="logo-ico"><img src="icon-192.png" alt="Logo"></div>
     <div style="min-width:0">
       <div class="logo-txt">Quản Lý Heo Nái<span class="logo-pro">PRO</span></div>
-      <div class="logo-ver">Lịch phối · Tiêm phòng · Chi phí · v1.6.1</div>
+      <div class="logo-ver">Lịch phối · Tiêm phòng · Chi phí · v1.6.2</div>
     </div>
   </div>
   <div id="nbar" onclick="nbarTap()" ondblclick="nbarDblTap()">
@@ -488,10 +488,9 @@ let _toastT=null,_popupResolve=null,_silentRefresh=false;
 
 const COLORS=['#2e7d32','#1565c0','#c62828','#ef6c00','#6a1b9a','#00838f','#4e342e'];
 /* Lịch tiêm tham khảo theo quy trình phổ biến ở Việt Nam (luôn ưu tiên hướng dẫn của thú y và nhãn vắc xin).
-   Heo mẹ: dFB = số ngày tính từ ngày phối (đẻ ~ngày 114); dFBR = số ngày sau khi đẻ. pre = mũi trước phối
-   (heo thường được nhập vào app đúng ngày phối nên không báo "quá hạn" cho mũi này). */
+   Heo mẹ: dFB = số ngày tính từ ngày phối (đẻ ~ngày 114); dFBR = số ngày sau khi đẻ. */
 const M_VACS=[
-  {n:"Parvo, Dịch tả, Giả dại",m:"2-4 tuần trước phối",dFB:-21,pre:true},
+  {n:"Parvo, Dịch tả, Giả dại",m:"2-4 tuần trước phối",dFB:-21},
   {n:"LMLM, E.coli (1)",m:"6 tuần trước đẻ",dFB:72},
   {n:"E.coli (2)",m:"3 tuần trước đẻ",dFB:93},
   {n:"Tẩy giun, trị ghẻ",m:"2 tuần trước đẻ",dFB:100},
@@ -2140,8 +2139,8 @@ function renderTable(pig,vacs,isMum,now,isSold){
     const done=pig.doneVacs[(isMum?'M':'B')+'_'+v.n];
     let al='';
     if(!done&&diff>=0&&diff<=3)al=diff===0?'<br><span style="color:#d93025;font-size:12px">Hôm nay!</span>':'<br><span style="color:#d93025;font-size:12px">Còn '+diff+' ngày</span>';
-    if(v.pre&&!done)al='';   // mũi trước phối: chỉ để đánh dấu, không báo quá hạn
-    const cls=done?'done':v.pre?'':diff<0?'overdue':diff<=3?'warning-3days':'';
+    if(!done&&diff<0)al=`<br><span style="color:#c62828;font-size:12px;font-weight:700">⚠️ Quá hạn ${-diff} ngày</span>`;
+    const cls=done?'done':diff<0?'overdue':diff<=3?'warning-3days':'';
     rows+=`<tr class="${cls}" ${!isSold?`ondblclick="toggleVac(${pig.id},'${isMum?'M':'B'}','${v.n}')"`:''}><td style="width:45%">${v.n}</td><td style="width:30%">${fmtDate(vd)}${al}</td><td style="width:25%;font-size:14px">${v.m}</td></tr>`;
   });
   return`<table>${rows}</table>`;
